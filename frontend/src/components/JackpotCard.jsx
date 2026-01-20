@@ -1,0 +1,416 @@
+import { useEffect, useState } from 'react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
+import {
+  usePoolData,
+  usePlayerEntries,
+  useUSDCBalance,
+  formatUSDC,
+  SMALL_POOL,
+} from '../hooks/useContract';
+import { useEntryFlow } from '../hooks/useEntry';
+import { useDonationFlow, useUserDonation } from '../hooks/useDonation';
+import { useToast } from './Toast';
+import { GracePeriodCountdown } from './GracePeriodCountdown';
+import { contracts } from '../config/wagmi';
+
+export function JackpotCard({ poolId, title, isCorrectNetwork }) {
+  const { isConnected, address } = useAccount();
+  const toast = useToast();
+  const hasContract = !!contracts.bubblePop;
+
+  // Donation state
+  const [donationAmount, setDonationAmount] = useState('');
+  const [showDonation, setShowDonation] = useState(false);
+
+  // Read pool data from contract
+  const {
+    pool,
+    jackpotFormatted,
+    winChanceFormatted,
+    entryCount,
+    isOpen,
+    inGracePeriod,
+    gracePeriodEnd,
+    isLoading: poolLoading,
+    refetch: refetchPool,
+  } = usePoolData(poolId);
+
+  // Read player's entries
+  const { entries: playerEntries } = usePlayerEntries(poolId, address);
+
+  // Read USDC balance and allowance
+  const {
+    balance: usdcBalance,
+    balanceFormatted: usdcBalanceFormatted,
+    allowance,
+  } = useUSDCBalance(address);
+
+  // Entry flow hooks
+  const { approval, entry, entryPrice, isLoading, resetAll } = useEntryFlow(poolId);
+
+  // Donation flow hooks
+  const {
+    approval: donationApproval,
+    donation,
+    isLoading: isDonationLoading,
+    resetAll: resetDonation,
+    parseAmount,
+  } = useDonationFlow();
+
+  // User's current donation for this round
+  const { donationAmount: userDonation, refetch: refetchDonation } = useUserDonation(poolId, address);
+
+  const entryPriceDisplay = poolId === SMALL_POOL ? '1' : '10';
+
+  // Check if user has enough balance
+  const hasEnoughBalance = usdcBalance && usdcBalance >= entryPrice;
+
+  // Check if approval is needed
+  const needsApproval = allowance !== undefined && allowance < entryPrice;
+
+  // Handle approval success
+  useEffect(() => {
+    if (approval.isConfirmed) {
+      toast.success('USDC approved! Now you can enter.');
+      approval.reset();
+    }
+  }, [approval.isConfirmed]);
+
+  // Handle approval error
+  useEffect(() => {
+    if (approval.error) {
+      toast.error(`Approval failed: ${approval.error.shortMessage || 'Unknown error'}`);
+      approval.reset();
+    }
+  }, [approval.error]);
+
+  // Handle entry success
+  useEffect(() => {
+    if (entry.isConfirmed) {
+      toast.success(`Entry confirmed! Good luck!`);
+      entry.reset();
+      refetchPool();
+    }
+  }, [entry.isConfirmed]);
+
+  // Handle entry error
+  useEffect(() => {
+    if (entry.error) {
+      toast.error(`Entry failed: ${entry.error.shortMessage || 'Unknown error'}`);
+      entry.reset();
+    }
+  }, [entry.error]);
+
+  // Handle donation approval success
+  useEffect(() => {
+    if (donationApproval.isConfirmed) {
+      toast.success('USDC approved! Now you can donate.');
+      donationApproval.reset();
+    }
+  }, [donationApproval.isConfirmed]);
+
+  // Handle donation approval error
+  useEffect(() => {
+    if (donationApproval.error) {
+      toast.error(`Approval failed: ${donationApproval.error.shortMessage || 'Unknown error'}`);
+      donationApproval.reset();
+    }
+  }, [donationApproval.error]);
+
+  // Handle donation success
+  useEffect(() => {
+    if (donation.isConfirmed) {
+      toast.success('Donation confirmed! Thank you for your contribution!');
+      donation.reset();
+      setDonationAmount('');
+      setShowDonation(false);
+      refetchPool();
+      refetchDonation();
+    }
+  }, [donation.isConfirmed]);
+
+  // Handle donation error
+  useEffect(() => {
+    if (donation.error) {
+      toast.error(`Donation failed: ${donation.error.shortMessage || 'Unknown error'}`);
+      donation.reset();
+    }
+  }, [donation.error]);
+
+  // Parse and validate donation amount
+  const parsedDonationAmount = parseAmount(donationAmount);
+  const hasEnoughForDonation = usdcBalance && parsedDonationAmount > 0n && usdcBalance >= parsedDonationAmount;
+  const needsDonationApproval = allowance !== undefined && parsedDonationAmount > 0n && allowance < parsedDonationAmount;
+
+  const handleEnter = async () => {
+    if (!hasContract) {
+      toast.error('Contract not deployed yet');
+      return;
+    }
+
+    if (!hasEnoughBalance) {
+      toast.error(`Insufficient USDC balance. You have ${usdcBalanceFormatted} USDC`);
+      return;
+    }
+
+    if (needsApproval) {
+      // First approve
+      toast.info('Please approve USDC spending...');
+      approval.approveMax();
+    } else {
+      // Direct entry
+      toast.info('Confirming entry...');
+      entry.enter(poolId);
+    }
+  };
+
+  const handleDonate = async () => {
+    if (!hasContract) {
+      toast.error('Contract not deployed yet');
+      return;
+    }
+
+    if (parsedDonationAmount <= 0n) {
+      toast.error('Please enter a valid donation amount');
+      return;
+    }
+
+    if (!hasEnoughForDonation) {
+      toast.error(`Insufficient USDC balance. You have ${usdcBalanceFormatted} USDC`);
+      return;
+    }
+
+    if (needsDonationApproval) {
+      toast.info('Please approve USDC spending for donation...');
+      donationApproval.approveMax();
+    } else {
+      toast.info('Confirming donation...');
+      donation.donate(poolId, parsedDonationAmount);
+    }
+  };
+
+  // Determine button state
+  const getButton = () => {
+    if (!isConnected) {
+      return (
+        <ConnectButton.Custom>
+          {({ openConnectModal }) => (
+            <button className="nes-btn is-primary" onClick={openConnectModal}>
+              Connect Wallet
+            </button>
+          )}
+        </ConnectButton.Custom>
+      );
+    }
+
+    if (!isCorrectNetwork) {
+      return (
+        <button className="nes-btn is-warning" disabled>
+          Wrong Network
+        </button>
+      );
+    }
+
+    if (!hasContract) {
+      return (
+        <button className="nes-btn" disabled>
+          Not Deployed
+        </button>
+      );
+    }
+
+    if (!isOpen) {
+      return (
+        <button className="nes-btn is-warning" disabled>
+          Grace Period
+        </button>
+      );
+    }
+
+    if (isLoading) {
+      const loadingText = approval.isPending ? 'Approve in wallet...' :
+                          approval.isConfirming ? 'Approving...' :
+                          entry.isPending ? 'Confirm in wallet...' :
+                          entry.isConfirming ? 'Entering...' : 'Loading...';
+      return (
+        <button className="nes-btn" disabled>
+          {loadingText}
+        </button>
+      );
+    }
+
+    if (!hasEnoughBalance) {
+      return (
+        <button className="nes-btn is-error" disabled>
+          Insufficient USDC
+        </button>
+      );
+    }
+
+    if (needsApproval) {
+      return (
+        <button className="nes-btn is-warning" onClick={handleEnter}>
+          Approve USDC
+        </button>
+      );
+    }
+
+    return (
+      <button className="nes-btn is-success" onClick={handleEnter}>
+        Enter ({entryPriceDisplay} USDC)
+      </button>
+    );
+  };
+
+  return (
+    <div className="nes-container with-title jackpot-card">
+      <p className="title">{title}</p>
+
+      {/* Grace Period Display */}
+      {inGracePeriod && gracePeriodEnd > 0 ? (
+        <GracePeriodCountdown
+          endTime={gracePeriodEnd}
+          lastWinner={pool?.lastWinner}
+          lastWinAmount={pool?.lastWinAmount}
+          formatUSDC={formatUSDC}
+        />
+      ) : (
+        <>
+          {/* Jackpot Amount */}
+          <div className="jackpot-display">
+            <p className="jackpot-label">Jackpot</p>
+            <p className="jackpot-amount nes-text is-success">
+              {poolLoading ? '...' : hasContract ? jackpotFormatted : '0.00'} USDC
+            </p>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="pool-stats">
+            <div className="stat">
+              <span className="stat-label">Entry</span>
+              <span className="stat-value">{entryPriceDisplay} USDC</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Entries</span>
+              <span className="stat-value">{hasContract ? entryCount : 0}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Win Chance</span>
+              <span className="stat-value nes-text is-primary">
+                {hasContract ? winChanceFormatted : '0.001%'}
+              </span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Status</span>
+              <span className={`stat-value ${isOpen ? 'nes-text is-success' : 'nes-text is-warning'}`}>
+                {hasContract ? (isOpen ? 'Open' : 'Paused') : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Player's balance and entries */}
+      {isConnected && (
+        <div className="player-info">
+          {hasContract && playerEntries > 0 && (
+            <p className="player-entries">
+              Your entries: <span className="nes-text is-primary">{playerEntries}</span>
+            </p>
+          )}
+          <p className="player-balance">
+            Balance: <span className="nes-text is-warning">{usdcBalanceFormatted} USDC</span>
+          </p>
+        </div>
+      )}
+
+      {/* Action Button */}
+      {getButton()}
+
+      {/* Donation Section */}
+      {isConnected && hasContract && isOpen && (
+        <div className="donation-section">
+          {!showDonation ? (
+            <button
+              className="nes-btn is-primary donation-toggle"
+              onClick={() => setShowDonation(true)}
+            >
+              Donate to Jackpot
+            </button>
+          ) : (
+            <div className="donation-form">
+              <div className="donation-input-row">
+                <input
+                  type="number"
+                  className="nes-input donation-input"
+                  placeholder="Amount"
+                  min="0.01"
+                  step="0.01"
+                  value={donationAmount}
+                  onChange={(e) => setDonationAmount(e.target.value)}
+                  disabled={isDonationLoading}
+                />
+                <span className="donation-currency">USDC</span>
+              </div>
+              <div className="donation-buttons">
+                {isDonationLoading ? (
+                  <button className="nes-btn" disabled>
+                    {donationApproval.isPending ? 'Approve in wallet...' :
+                     donationApproval.isConfirming ? 'Approving...' :
+                     donation.isPending ? 'Confirm in wallet...' :
+                     donation.isConfirming ? 'Donating...' : 'Loading...'}
+                  </button>
+                ) : needsDonationApproval ? (
+                  <button
+                    className="nes-btn is-warning"
+                    onClick={handleDonate}
+                    disabled={!parsedDonationAmount || parsedDonationAmount <= 0n}
+                  >
+                    Approve USDC
+                  </button>
+                ) : (
+                  <button
+                    className="nes-btn is-success"
+                    onClick={handleDonate}
+                    disabled={!parsedDonationAmount || parsedDonationAmount <= 0n || !hasEnoughForDonation}
+                  >
+                    Donate
+                  </button>
+                )}
+                <button
+                  className="nes-btn"
+                  onClick={() => {
+                    setShowDonation(false);
+                    setDonationAmount('');
+                  }}
+                  disabled={isDonationLoading}
+                >
+                  Cancel
+                </button>
+              </div>
+              {userDonation > 0n && (
+                <p className="your-donation">
+                  Your donation this round: <span className="nes-text is-success">{formatUSDC(userDonation)} USDC</span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Last Winner - only show when NOT in grace period (grace period shows this info) */}
+      {!inGracePeriod && pool?.lastWinner && pool.lastWinner !== '0x0000000000000000000000000000000000000000' && (
+        <div className="last-winner">
+          <p className="last-winner-label">Last Winner</p>
+          <p className="last-winner-address">
+            {pool.lastWinner.slice(0, 6)}...{pool.lastWinner.slice(-4)}
+          </p>
+          <p className="last-winner-amount">
+            Won {formatUSDC(pool.lastWinAmount)} USDC
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

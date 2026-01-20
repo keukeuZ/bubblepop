@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --accent-pink: #e94560;
+  --accent-blue: #0f3460;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --success: #4ade80;
+  --warning: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.nes-container {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.nes-container.is-dark {
+  background-color: var(--bg-primary) !important;
+}
+
+.nes-btn {
+  font-family: 'Press Start 2P', cursive;
+}
+
+.nes-btn.is-primary {
+  background-color: var(--accent-pink) !important;
+}
+
+.nes-btn.is-success {
+  background-color: var(--success) !important;
+}
+
+.nes-text.is-primary {
+  color: var(--accent-pink) !important;
+}
+
+.nes-text.is-success {
+  color: var(--success) !important;
+}
+
+.nes-text.is-warning {
+  color: var(--warning) !important;
+}
+
+h1, h2, h3 {
+  font-family: 'Press Start 2P', cursive;
+}
+
+.pixel-border {
+  box-shadow:
+    0 4px 0 0 var(--accent-pink),
+    0 -4px 0 0 var(--accent-pink),
+    4px 0 0 0 var(--accent-pink),
+    -4px 0 0 0 var(--accent-pink);
+}
