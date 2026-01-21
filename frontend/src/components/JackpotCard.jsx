@@ -12,7 +12,26 @@ import { useEntryFlow } from '../hooks/useEntry';
 import { useDonationFlow, useUserDonation } from '../hooks/useDonation';
 import { useToast } from './Toast';
 import { GracePeriodCountdown } from './GracePeriodCountdown';
+import { PoolTimer } from './PoolTimer';
 import { contracts } from '../config/wagmi';
+
+// Random fun phrases shown before/during entry
+const entryPhrases = [
+  "Feeling lucky, punk?",
+  "Fortune favors the bold!",
+  "Will today be your day?",
+  "Ready to pop some bubbles?",
+  "Let's see what fate decides...",
+  "The jackpot awaits!",
+  "Cross your fingers!",
+  "Here goes nothing!",
+  "Lady Luck, be kind!",
+  "To the moon or bust!",
+];
+
+function getRandomPhrase() {
+  return entryPhrases[Math.floor(Math.random() * entryPhrases.length)];
+}
 
 export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   const { isConnected, address } = useAccount();
@@ -22,6 +41,9 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   // Donation state
   const [donationAmount, setDonationAmount] = useState('');
   const [showDonation, setShowDonation] = useState(false);
+
+  // Random phrase for entry button
+  const [entryPhrase, setEntryPhrase] = useState(getRandomPhrase());
 
   // Read pool data from contract
   const {
@@ -85,12 +107,23 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     }
   }, [approval.error]);
 
-  // Handle entry success
+  // Handle entry success - show result feedback
   useEffect(() => {
     if (entry.isConfirmed) {
-      toast.success(`Entry confirmed! Good luck!`);
+      // Show a fun message - actual win detection would need to check events
+      const luckMessages = [
+        "Entry confirmed! Fingers crossed!",
+        "You're in! May the odds be in your favor!",
+        "Bubble submitted! Good luck!",
+        "Entry locked in! Let's see what happens!",
+        "You're playing! Dreams can come true!",
+      ];
+      const msg = luckMessages[Math.floor(Math.random() * luckMessages.length)];
+      toast.success(msg);
       entry.reset();
       refetchPool();
+      // Get new phrase for next entry
+      setEntryPhrase(getRandomPhrase());
     }
   }, [entry.isConfirmed]);
 
@@ -159,8 +192,8 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
       toast.info('Please approve USDC spending...');
       approval.approveMax();
     } else {
-      // Direct entry
-      toast.info('Confirming entry...');
+      // Direct entry - show fun phrase
+      toast.info(entryPhrase);
       entry.enter(poolId);
     }
   };
@@ -285,6 +318,11 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
             </p>
           </div>
 
+          {/* Running Timer */}
+          {hasContract && pool?.roundStartTime && (
+            <PoolTimer startTime={pool.roundStartTime} />
+          )}
+
           {/* Stats Grid */}
           <div className="pool-stats">
             <div className="stat">
@@ -336,7 +374,7 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
               className="nes-btn is-primary donation-toggle"
               onClick={() => setShowDonation(true)}
             >
-              Donate to Jackpot
+              Donate to {title}
             </button>
           ) : (
             <div className="donation-form">

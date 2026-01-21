@@ -1,6 +1,7 @@
 import { useTopDonorsCurrentRound, useTopDonorsYearly } from '../hooks/useSponsorBoard';
 import { formatUSDC, SMALL_POOL, BIG_POOL } from '../hooks/useContract';
 import { contracts } from '../config/wagmi';
+import { AddressDisplay } from './AddressDisplay';
 
 function DonorList({ donors, emptyMessage }) {
   if (!donors || donors.length === 0) {
@@ -13,7 +14,7 @@ function DonorList({ donors, emptyMessage }) {
         <div key={donor.address} className="donor-item">
           <span className="donor-rank">#{index + 1}</span>
           <span className="donor-address">
-            {donor.address.slice(0, 6)}...{donor.address.slice(-4)}
+            <AddressDisplay address={donor.address} />
           </span>
           <span className="donor-amount nes-text is-success">
             {formatUSDC(donor.amount)} USDC

@@ -7,6 +7,8 @@ import { SponsorBoard } from './components/SponsorBoard';
 import { FAQ } from './components/FAQ';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { LiveEntries } from './components/LiveEntries';
+import { ASCIIBackground } from './components/ASCIIBackground';
 import { SMALL_POOL, BIG_POOL } from './hooks/useContract';
 import './App.css';
 
@@ -19,6 +21,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
+        <ASCIIBackground />
         <div className="app">
         <header className="header">
           <div className="logo">
@@ -57,6 +60,8 @@ function App() {
             />
           </div>
 
+          <LiveEntries />
+
           <section className="nes-container with-title">
             <p className="title">How It Works</p>
             <ul className="nes-list is-disc">
@@ -67,11 +72,11 @@ function App() {
             </ul>
           </section>
 
-          <FAQ />
-
           <WinnerHistory />
 
           <SponsorBoard />
+
+          <FAQ />
 
           {isConnected && (
             <section className="nes-container is-dark with-title">
@@ -88,6 +93,20 @@ function App() {
         </main>
 
         <footer className="footer">
+          <div className="social-links">
+            <a href="https://twitter.com/bubblepop" target="_blank" rel="noopener noreferrer" className="nes-btn social-btn">
+              <span className="social-icon">𝕏</span> Twitter
+            </a>
+            <a href="https://discord.gg/bubblepop" target="_blank" rel="noopener noreferrer" className="nes-btn social-btn">
+              <span className="social-icon">💬</span> Discord
+            </a>
+            <a href="mailto:contact@bubblepop.xyz" className="nes-btn social-btn">
+              <span className="social-icon">✉</span> Contact
+            </a>
+          </div>
+          <button className="nes-btn go-to-top" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            ↑ Back to Top
+          </button>
           <p className="nes-text is-disabled">
             Built on Base | Provably Fair
           </p>

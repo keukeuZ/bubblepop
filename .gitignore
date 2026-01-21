@@ -48,3 +48,11 @@ deployments/localhost/
 # Misc
 *.local
 .vercel
+
+# Internal/working files
+plan*.md
+test-questions.md
+TODO.md
+NOTES.md
+*.todo
+*.scratch

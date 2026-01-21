@@ -39,8 +39,19 @@ body {
   color: var(--text-primary) !important;
 }
 
+/* Fix white title on white background */
+.nes-container.with-title > .title {
+  background-color: var(--bg-secondary) !important;
+  color: var(--accent-pink) !important;
+}
+
 .nes-container.is-dark {
   background-color: var(--bg-primary) !important;
+}
+
+.nes-container.is-dark.with-title > .title {
+  background-color: var(--bg-primary) !important;
+  color: var(--accent-pink) !important;
 }
 
 .nes-btn {

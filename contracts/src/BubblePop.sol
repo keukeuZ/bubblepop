@@ -49,8 +49,9 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard {
     // ============ Constants ============
 
     uint256 public constant HOUSE_FEE_BPS = 90; // 0.9% = 90 basis points
+    uint256 public constant ROLLOVER_BPS = 910; // 9.1% = 910 basis points
     uint256 public constant BPS_DENOMINATOR = 10000;
-    uint256 public constant GRACE_PERIOD = 1 hours;
+    uint256 public constant GRACE_PERIOD = 15 minutes;
     uint256 public constant SMALL_POOL_ENTRY = 1e6;  // 1 USDC (6 decimals)
     uint256 public constant BIG_POOL_ENTRY = 10e6;   // 10 USDC (6 decimals)
 
@@ -396,17 +397,18 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard {
         uint256 winnerIndex = randomWord % entries.length;
         Entry memory winningEntry = entries[winnerIndex];
 
-        // Calculate payout and house fee
+        // Calculate payout, house fee, and rollover
         uint256 jackpot = pool.jackpot;
         uint256 houseFee = (jackpot * HOUSE_FEE_BPS) / BPS_DENOMINATOR;
-        uint256 winnerPayout = jackpot - houseFee;
+        uint256 rollover = (jackpot * ROLLOVER_BPS) / BPS_DENOMINATOR;
+        uint256 winnerPayout = jackpot - houseFee - rollover;
 
         // Update pool state
         pool.lastWinner = winningEntry.player;
         pool.lastWinAmount = winnerPayout;
         pool.lastPayoutTime = block.timestamp;
         pool.inGracePeriod = true;
-        pool.jackpot = 0;
+        pool.jackpot = rollover; // Rollover to next round
         pool.totalEntries = 0;
 
         // Clear entries for new round
@@ -683,5 +685,49 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard {
         s_callbackGasLimit = callbackGasLimit;
         s_requestConfirmations = requestConfirmations;
         emit VRFConfigUpdated(subscriptionId, keyHash);
+    }
+
+    // ============ Testing Functions (Testnet Only) ============
+
+    /**
+     * @notice Force a winner draw for testing purposes (owner only)
+     * @dev This bypasses VRF and directly selects a winner. USE ONLY FOR TESTING.
+     * @param poolId The pool to draw from
+     * @param seed A seed value to determine the winner (for predictable testing)
+     */
+    function testDraw(uint256 poolId, uint256 seed) external {
+        if (msg.sender != owner()) revert OnlyOwner();
+        if (poolId > 1) revert InvalidPoolId();
+
+        Pool storage pool = pools[poolId];
+        Entry[] storage entries = poolEntries[poolId];
+
+        if (entries.length == 0) revert NoEntries();
+        if (pool.inGracePeriod) revert PoolInGracePeriod();
+
+        // Use a fake request ID for the event
+        uint256 fakeRequestId = uint256(keccak256(abi.encodePacked(block.timestamp, seed, "TEST")));
+
+        // Process winner using the seed
+        _processWinner(poolId, seed, fakeRequestId);
+    }
+
+    /**
+     * @notice Force a no-winner roll for testing purposes (owner only)
+     * @dev This allows testing the NoWinnerThisRoll flow without VRF
+     * @param poolId The pool to test
+     */
+    function testNoWinRoll(uint256 poolId) external {
+        if (msg.sender != owner()) revert OnlyOwner();
+        if (poolId > 1) revert InvalidPoolId();
+
+        Pool storage pool = pools[poolId];
+        if (pool.inGracePeriod) revert PoolInGracePeriod();
+        if (poolEntries[poolId].length == 0) revert NoEntries();
+
+        uint256 fakeRequestId = uint256(keccak256(abi.encodePacked(block.timestamp, "NO_WIN_TEST")));
+        uint256 currentOdds = getCurrentWinChance(poolId);
+
+        emit NoWinnerThisRoll(poolId, fakeRequestId, currentOdds);
     }
 }
