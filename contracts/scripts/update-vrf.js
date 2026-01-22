@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const bubblePopAddress = "0x30Caca4997913a37572B4df2Acd04c5f01D4bB73";
+  const bubblePopAddress = "0x9cde6D6Bd44790538a0548B6624a1c683A874e28";
 
   const subscriptionId = process.env.VRF_SUBSCRIPTION_ID;
   if (!subscriptionId) {

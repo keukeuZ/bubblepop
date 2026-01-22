@@ -152,6 +152,15 @@ export function usePoolData(poolId) {
   const entryCount = data?.[2]?.result;
   const gracePeriodEnd = data?.[3]?.result;
 
+  // Check if pool is open for entries
+  // Pool is open if:
+  // 1. Not in grace period, OR
+  // 2. In grace period but the grace period time has elapsed (contract will auto-end it on entry)
+  const gracePeriodEndTime = gracePeriodEnd ? Number(gracePeriodEnd) : 0;
+  const now = Math.floor(Date.now() / 1000);
+  const gracePeriodElapsed = gracePeriodEndTime > 0 && now >= gracePeriodEndTime;
+  const isOpen = pool ? (!pool.inGracePeriod || gracePeriodElapsed) : true;
+
   return {
     pool,
     winChance,
@@ -159,9 +168,10 @@ export function usePoolData(poolId) {
     entryCount: entryCount ? Number(entryCount) : 0,
     jackpot: pool?.jackpot,
     jackpotFormatted: formatUSDC(pool?.jackpot),
-    isOpen: pool ? !pool.inGracePeriod : true,
+    isOpen,
     inGracePeriod: pool?.inGracePeriod || false,
-    gracePeriodEnd: gracePeriodEnd ? Number(gracePeriodEnd) : 0,
+    gracePeriodEnd: gracePeriodEndTime,
+    gracePeriodElapsed,
     isLoading,
     error,
     refetch,

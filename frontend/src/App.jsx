@@ -9,6 +9,7 @@ import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LiveEntries } from './components/LiveEntries';
 import { ASCIIBackground } from './components/ASCIIBackground';
+import { MusicPlayer } from './components/MusicPlayer';
 import { SMALL_POOL, BIG_POOL } from './hooks/useContract';
 import './App.css';
 
@@ -22,10 +23,11 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <ASCIIBackground />
+        <MusicPlayer />
         <div className="app">
         <header className="header">
           <div className="logo">
-            <h1 className="nes-text is-primary">BubblePop</h1>
+            <h1 className="nes-text is-primary">BubblePop!</h1>
           </div>
           <ConnectButton
             showBalance={false}
@@ -35,7 +37,7 @@ function App() {
         </header>
 
         <main className="main">
-          <section className="nes-container is-dark with-title">
+          <section className="nes-container is-dark with-title welcome-box">
             <p className="title">Welcome!</p>
             <p>Pop the bubble. Win the jackpot.</p>
             <p className="nes-text is-warning">1 USDC or 10 USDC per entry</p>

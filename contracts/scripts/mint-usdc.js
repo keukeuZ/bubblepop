@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const mockUSDCAddress = "0xcCa67993A50bD0cb5f3Fa94d3da8E0a6DBe7Bb1c";
+  const mockUSDCAddress = "0x5C634839a4C95A257796Dc52E55AF9fa4d0d5324";
 
   const [deployer] = await hre.ethers.getSigners();
 

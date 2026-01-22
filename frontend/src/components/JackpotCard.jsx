@@ -54,6 +54,7 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     isOpen,
     inGracePeriod,
     gracePeriodEnd,
+    gracePeriodElapsed,
     isLoading: poolLoading,
     refetch: refetchPool,
   } = usePoolData(poolId);
@@ -300,8 +301,8 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     <div className="nes-container with-title jackpot-card">
       <p className="title">{title}</p>
 
-      {/* Grace Period Display */}
-      {inGracePeriod && gracePeriodEnd > 0 ? (
+      {/* Grace Period Display - only show countdown if grace period is active AND not elapsed */}
+      {inGracePeriod && gracePeriodEnd > 0 && !gracePeriodElapsed ? (
         <GracePeriodCountdown
           endTime={gracePeriodEnd}
           lastWinner={pool?.lastWinner}
