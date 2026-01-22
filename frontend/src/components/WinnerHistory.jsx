@@ -18,8 +18,10 @@ export function WinnerHistory() {
   const [lastFetchedBlock, setLastFetchedBlock] = useState(null);
 
   const chainId = useChainId();
-  const publicClient = usePublicClient();
-  const { data: currentBlock } = useBlockNumber({ watch: true });
+  // Use Base Sepolia chain ID explicitly for event queries
+  const targetChainId = CHAIN_IDS.BASE_SEPOLIA;
+  const publicClient = usePublicClient({ chainId: targetChainId });
+  const { data: currentBlock } = useBlockNumber({ chainId: targetChainId, watch: true });
 
   const hasContract = !!contracts.bubblePop;
 
@@ -48,10 +50,15 @@ export function WinnerHistory() {
 
   // Fetch historical winners
   const fetchWinners = useCallback(async (fromBlock = null) => {
-    if (!publicClient || !hasContract) return;
+    if (!publicClient || !hasContract) {
+      console.log('[WinnerHistory] Skipping fetch - publicClient:', !!publicClient, 'hasContract:', hasContract);
+      return;
+    }
 
     try {
       const latestBlock = await publicClient.getBlockNumber();
+      console.log('[WinnerHistory] Current block:', latestBlock.toString());
+      console.log('[WinnerHistory] Contract address:', contracts.bubblePop);
 
       // RPC limit is typically 50k blocks, search in chunks
       const CHUNK_SIZE = 49000n;
@@ -60,6 +67,8 @@ export function WinnerHistory() {
       const searchFromBlock = fromBlock
         ? BigInt(fromBlock)
         : (latestBlock > TOTAL_BLOCKS ? latestBlock - TOTAL_BLOCKS : 0n);
+
+      console.log('[WinnerHistory] Searching from block:', searchFromBlock.toString(), 'to', latestBlock.toString());
 
       const eventAbi = {
         type: 'event',
@@ -75,8 +84,10 @@ export function WinnerHistory() {
 
       // Fetch in chunks to avoid RPC block range limits
       let allLogs = [];
+      let chunkCount = 0;
       for (let start = searchFromBlock; start < latestBlock; start += CHUNK_SIZE) {
         const end = start + CHUNK_SIZE > latestBlock ? latestBlock : start + CHUNK_SIZE;
+        chunkCount++;
         try {
           const chunkLogs = await publicClient.getLogs({
             address: contracts.bubblePop,
@@ -84,12 +95,14 @@ export function WinnerHistory() {
             fromBlock: start,
             toBlock: end,
           });
+          console.log(`[WinnerHistory] Chunk ${chunkCount}: blocks ${start}-${end}, found ${chunkLogs.length} events`);
           allLogs = allLogs.concat(chunkLogs);
         } catch (err) {
-          console.warn(`Error fetching chunk ${start}-${end}:`, err);
+          console.warn(`[WinnerHistory] Error fetching chunk ${start}-${end}:`, err);
         }
       }
 
+      console.log('[WinnerHistory] Total events found:', allLogs.length);
       const logs = allLogs;
 
       if (logs.length > 0) {

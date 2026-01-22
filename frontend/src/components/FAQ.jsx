@@ -15,7 +15,11 @@ const FAQ_ITEMS = [
   },
   {
     question: 'What happens when someone wins?',
-    answer: 'The winner receives 99.1% of the jackpot instantly to their wallet. A 0.9% house fee covers operational costs. After a 1-hour grace period for verification, a new round begins.',
+    answer: 'The winner receives 99.1% of the jackpot instantly to their wallet. The remaining 0.9% rolls over to seed the next round\'s jackpot - so the pot is never empty! After a 1-hour grace period for verification, a new round begins with the rolled-over funds.',
+  },
+  {
+    question: 'What is the Rolling Pot?',
+    answer: 'When someone wins, 0.9% of the jackpot automatically seeds the next round. This means the jackpot is never zero - every new round starts with funds already in the pot. The more people play over time, the larger these rolling seed amounts become!',
   },
   {
     question: 'What is USDC?',
