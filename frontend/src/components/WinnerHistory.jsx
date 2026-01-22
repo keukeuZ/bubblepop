@@ -51,26 +51,46 @@ export function WinnerHistory() {
     if (!publicClient || !hasContract) return;
 
     try {
-      // If no fromBlock specified, search last ~100k blocks (roughly 2-3 days on Base)
       const latestBlock = await publicClient.getBlockNumber();
-      const searchFromBlock = fromBlock || (latestBlock > 100000n ? latestBlock - 100000n : 0n);
 
-      const logs = await publicClient.getLogs({
-        address: contracts.bubblePop,
-        event: {
-          type: 'event',
-          name: 'WinnerSelected',
-          inputs: [
-            { indexed: true, name: 'poolId', type: 'uint256' },
-            { indexed: true, name: 'winner', type: 'address' },
-            { indexed: false, name: 'amount', type: 'uint256' },
-            { indexed: false, name: 'houseFee', type: 'uint256' },
-            { indexed: false, name: 'requestId', type: 'uint256' },
-          ],
-        },
-        fromBlock: searchFromBlock,
-        toBlock: 'latest',
-      });
+      // RPC limit is typically 50k blocks, search in chunks
+      const CHUNK_SIZE = 49000n;
+      const TOTAL_BLOCKS = 200000n; // Search last ~200k blocks (~2-3 days on Base)
+
+      const searchFromBlock = fromBlock
+        ? BigInt(fromBlock)
+        : (latestBlock > TOTAL_BLOCKS ? latestBlock - TOTAL_BLOCKS : 0n);
+
+      const eventAbi = {
+        type: 'event',
+        name: 'WinnerSelected',
+        inputs: [
+          { indexed: true, name: 'poolId', type: 'uint256' },
+          { indexed: true, name: 'winner', type: 'address' },
+          { indexed: false, name: 'amount', type: 'uint256' },
+          { indexed: false, name: 'houseFee', type: 'uint256' },
+          { indexed: false, name: 'requestId', type: 'uint256' },
+        ],
+      };
+
+      // Fetch in chunks to avoid RPC block range limits
+      let allLogs = [];
+      for (let start = searchFromBlock; start < latestBlock; start += CHUNK_SIZE) {
+        const end = start + CHUNK_SIZE > latestBlock ? latestBlock : start + CHUNK_SIZE;
+        try {
+          const chunkLogs = await publicClient.getLogs({
+            address: contracts.bubblePop,
+            event: eventAbi,
+            fromBlock: start,
+            toBlock: end,
+          });
+          allLogs = allLogs.concat(chunkLogs);
+        } catch (err) {
+          console.warn(`Error fetching chunk ${start}-${end}:`, err);
+        }
+      }
+
+      const logs = allLogs;
 
       if (logs.length > 0) {
         // Get block timestamps for each unique block
