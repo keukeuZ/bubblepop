@@ -39,6 +39,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     struct VRFRequest {
         uint256 poolId;
         bool exists;
+        bool forcedDraw; // If true, guarantees a winner (90-day rule)
     }
 
     struct Donation {
@@ -53,6 +54,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     uint256 public constant ROLLOVER_BPS = 910; // 9.1% = 910 basis points
     uint256 public constant BPS_DENOMINATOR = 10000;
     uint256 public constant GRACE_PERIOD = 15 minutes;
+    uint256 public constant MAX_ROUND_DURATION = 90 days; // Force draw after 90 days
     uint256 public constant SMALL_POOL_ENTRY = 1e6;  // 1 USDC (6 decimals)
     uint256 public constant BIG_POOL_ENTRY = 10e6;   // 10 USDC (6 decimals)
 
@@ -96,28 +98,33 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     // Entries per pool: poolId => entries array
     mapping(uint256 => Entry[]) public poolEntries;
 
-    // Track player entries per pool per round
-    mapping(uint256 => mapping(address => uint256)) public playerEntryCount;
-
     // VRF request tracking
     mapping(uint256 => VRFRequest) public vrfRequests;
 
+    // ============ Round Tracking ============
+
+    // Current round ID per pool (incremented on each winner)
+    mapping(uint256 => uint256) public currentRoundId;
+
     // ============ Donation Tracking ============
 
-    // Current round donations per pool: poolId => donor => amount
-    mapping(uint256 => mapping(address => uint256)) public currentRoundDonations;
+    // Round donations: poolId => roundId => donor => amount
+    mapping(uint256 => mapping(uint256 => mapping(address => uint256))) public roundDonations;
 
-    // List of donors in current round per pool (for iteration)
-    mapping(uint256 => address[]) public currentRoundDonorList;
+    // List of donors per round: poolId => roundId => donors array
+    mapping(uint256 => mapping(uint256 => address[])) public roundDonorList;
 
-    // Total donations in current round per pool
-    mapping(uint256 => uint256) public currentRoundTotalDonations;
+    // Total donations per round: poolId => roundId => total
+    mapping(uint256 => mapping(uint256 => uint256)) public roundTotalDonations;
+
+    // Track if address is already in round donor list: poolId => roundId => donor => bool
+    mapping(uint256 => mapping(uint256 => mapping(address => bool))) public isRoundDonor;
 
     // All-time donations (for yearly hall of fame)
     Donation[] public allTimeDonations;
 
-    // Track if address is already in current round donor list
-    mapping(uint256 => mapping(address => bool)) public isCurrentRoundDonor;
+    // Player entry count per round: poolId => roundId => player => count
+    mapping(uint256 => mapping(uint256 => mapping(address => uint256))) public roundPlayerEntryCount;
 
     // ============ Events ============
 
@@ -159,6 +166,9 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         uint256 amount,
         uint256 newJackpot
     );
+    event ForcedDrawRequested(uint256 indexed poolId, uint256 indexed requestId);
+    event EmergencyVRFReset(uint256 indexed poolId);
+    event NewRoundStarted(uint256 indexed poolId, uint256 roundId);
 
     // ============ Errors ============
 
@@ -167,12 +177,13 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     error NoEntries();
     error InvalidAmount();
     error GracePeriodNotOver();
-    error SameBlockEntry();
     error VRFRequestPending();
     error UnknownVRFRequest();
     error OnlyOwner();
     error InvalidGasLimit();
     error TooManyDonors();
+    error RoundNotExpired();
+    error NoVRFRequestPending();
 
     // ============ Constructor ============
 
@@ -266,7 +277,10 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         pool.jackpot += entryPrice;
         pool.totalEntries++;
-        playerEntryCount[poolId][msg.sender]++;
+
+        // Track player entries per round (automatically resets with new round)
+        uint256 roundId = currentRoundId[poolId];
+        roundPlayerEntryCount[poolId][roundId][msg.sender]++;
 
         emit EntrySubmitted(
             poolId,
@@ -306,10 +320,53 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         vrfRequests[requestId] = VRFRequest({
             poolId: poolId,
-            exists: true
+            exists: true,
+            forcedDraw: false
         });
 
         emit RandomnessRequested(poolId, requestId);
+    }
+
+    /**
+     * @notice Request a forced draw after 90 days - guarantees a winner
+     * @param poolId The pool to force draw
+     */
+    function requestForcedDraw(uint256 poolId) external onlyAuthorized {
+        if (poolId > 1) revert InvalidPoolId();
+
+        Pool storage pool = pools[poolId];
+
+        if (pool.inGracePeriod) revert PoolInGracePeriod();
+        if (pool.vrfRequestPending) revert VRFRequestPending();
+        if (poolEntries[poolId].length == 0) revert NoEntries();
+
+        // Must be 90 days since round started
+        if (block.timestamp < pool.roundStartTime + MAX_ROUND_DURATION) {
+            revert RoundNotExpired();
+        }
+
+        pool.vrfRequestPending = true;
+
+        uint256 requestId = s_vrfCoordinator.requestRandomWords(
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: s_keyHash,
+                subId: s_subscriptionId,
+                requestConfirmations: s_requestConfirmations,
+                callbackGasLimit: s_callbackGasLimit,
+                numWords: NUM_WORDS,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
+            })
+        );
+
+        vrfRequests[requestId] = VRFRequest({
+            poolId: poolId,
+            exists: true,
+            forcedDraw: true
+        });
+
+        emit ForcedDrawRequested(poolId, requestId);
     }
 
     /**
@@ -342,6 +399,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         if (amount == 0) revert InvalidAmount();
 
         Pool storage pool = pools[poolId];
+        uint256 roundId = currentRoundId[poolId];
 
         // Transfer USDC from donor
         usdc.safeTransferFrom(msg.sender, address(this), amount);
@@ -349,17 +407,17 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         // Add to jackpot
         pool.jackpot += amount;
 
-        // Track current round donation
-        currentRoundDonations[poolId][msg.sender] += amount;
-        currentRoundTotalDonations[poolId] += amount;
+        // Track round donation (uses round ID - no reset loop needed!)
+        roundDonations[poolId][roundId][msg.sender] += amount;
+        roundTotalDonations[poolId][roundId] += amount;
 
         // Add to donor list if not already present (with gas limit protection)
-        if (!isCurrentRoundDonor[poolId][msg.sender]) {
-            if (currentRoundDonorList[poolId].length >= MAX_CURRENT_ROUND_DONORS) {
+        if (!isRoundDonor[poolId][roundId][msg.sender]) {
+            if (roundDonorList[poolId][roundId].length >= MAX_CURRENT_ROUND_DONORS) {
                 revert TooManyDonors();
             }
-            currentRoundDonorList[poolId].push(msg.sender);
-            isCurrentRoundDonor[poolId][msg.sender] = true;
+            roundDonorList[poolId][roundId].push(msg.sender);
+            isRoundDonor[poolId][roundId][msg.sender] = true;
         }
 
         // Track all-time donation for yearly hall of fame (with cleanup when limit reached)
@@ -390,6 +448,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         if (!request.exists) revert UnknownVRFRequest();
 
         uint256 poolId = request.poolId;
+        bool isForcedDraw = request.forcedDraw;
         Pool storage pool = pools[poolId];
 
         pool.vrfRequestPending = false;
@@ -400,10 +459,14 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         uint256 randomWord = randomWords[0];
 
-        // Calculate current win chance based on time elapsed
-        uint256 currentOdds = getCurrentWinChance(poolId);
+        // Forced draw (90-day rule): guarantee a winner
+        if (isForcedDraw) {
+            _processWinner(poolId, randomWord, requestId);
+            return;
+        }
 
-        // Check if this roll wins (random % 1000000 < currentOdds)
+        // Normal draw: check probability
+        uint256 currentOdds = getCurrentWinChance(poolId);
         uint256 rollResult = randomWord % CHANCE_DENOMINATOR;
 
         if (rollResult < currentOdds) {
@@ -442,10 +505,10 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         // Clear entries for new round
         delete poolEntries[poolId];
 
-        // Reset player entry counts (gas optimization: done lazily on next round)
-
-        // Reset current round donations
-        _resetCurrentRoundDonations(poolId);
+        // Increment round ID - this effectively resets all round-based tracking
+        // (donations, player entries) without any loops! Old data becomes stale.
+        currentRoundId[poolId]++;
+        emit NewRoundStarted(poolId, currentRoundId[poolId]);
 
         // Transfer winnings
         usdc.safeTransfer(winningEntry.player, winnerPayout);
@@ -453,26 +516,6 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         emit WinnerSelected(poolId, winningEntry.player, winnerPayout, houseFee, requestId);
         emit GracePeriodStarted(poolId, block.timestamp + GRACE_PERIOD);
-    }
-
-    /**
-     * @notice Reset current round donations for a pool
-     * @dev Limited by MAX_CURRENT_ROUND_DONORS to prevent gas limit issues
-     */
-    function _resetCurrentRoundDonations(uint256 poolId) internal {
-        address[] storage donors = currentRoundDonorList[poolId];
-        uint256 donorCount = donors.length;
-
-        // Reset individual donation amounts (bounded by MAX_CURRENT_ROUND_DONORS)
-        for (uint256 i = 0; i < donorCount; i++) {
-            address donor = donors[i];
-            currentRoundDonations[poolId][donor] = 0;
-            isCurrentRoundDonor[poolId][donor] = false;
-        }
-
-        // Clear donor list and total
-        delete currentRoundDonorList[poolId];
-        currentRoundTotalDonations[poolId] = 0;
     }
 
     /**
@@ -543,7 +586,29 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      */
     function getPlayerEntries(uint256 poolId, address player) external view returns (uint256) {
         if (poolId > 1) revert InvalidPoolId();
-        return playerEntryCount[poolId][player];
+        uint256 roundId = currentRoundId[poolId];
+        return roundPlayerEntryCount[poolId][roundId][player];
+    }
+
+    /**
+     * @notice Check if a pool's round has exceeded 90 days (eligible for forced draw)
+     */
+    function isRoundExpired(uint256 poolId) external view returns (bool) {
+        if (poolId > 1) return false;
+        Pool memory pool = pools[poolId];
+        if (pool.inGracePeriod) return false;
+        return block.timestamp >= pool.roundStartTime + MAX_ROUND_DURATION;
+    }
+
+    /**
+     * @notice Get time remaining until forced draw is available (0 if already available)
+     */
+    function getTimeUntilForcedDraw(uint256 poolId) external view returns (uint256) {
+        if (poolId > 1) revert InvalidPoolId();
+        Pool memory pool = pools[poolId];
+        uint256 forcedDrawTime = pool.roundStartTime + MAX_ROUND_DURATION;
+        if (block.timestamp >= forcedDrawTime) return 0;
+        return forcedDrawTime - block.timestamp;
     }
 
     /**
@@ -585,7 +650,8 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
             maxResults = MAX_TOP_DONORS;
         }
 
-        address[] storage donorList = currentRoundDonorList[poolId];
+        uint256 roundId = currentRoundId[poolId];
+        address[] storage donorList = roundDonorList[poolId][roundId];
         uint256 count = donorList.length < maxResults ? donorList.length : maxResults;
 
         // Create temporary arrays for sorting
@@ -594,7 +660,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         for (uint256 i = 0; i < donorList.length; i++) {
             tempDonors[i] = donorList[i];
-            tempAmounts[i] = currentRoundDonations[poolId][donorList[i]];
+            tempAmounts[i] = roundDonations[poolId][roundId][donorList[i]];
         }
 
         // Simple bubble sort (fine for small arrays)
@@ -700,7 +766,8 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      */
     function getDonorAmount(uint256 poolId, address donor) external view returns (uint256) {
         if (poolId > 1) revert InvalidPoolId();
-        return currentRoundDonations[poolId][donor];
+        uint256 roundId = currentRoundId[poolId];
+        return roundDonations[poolId][roundId][donor];
     }
 
     /**
@@ -715,7 +782,16 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      */
     function getCurrentRoundDonorCount(uint256 poolId) external view returns (uint256) {
         if (poolId > 1) revert InvalidPoolId();
-        return currentRoundDonorList[poolId].length;
+        uint256 roundId = currentRoundId[poolId];
+        return roundDonorList[poolId][roundId].length;
+    }
+
+    /**
+     * @notice Get current round ID for a pool
+     */
+    function getCurrentRoundId(uint256 poolId) external view returns (uint256) {
+        if (poolId > 1) revert InvalidPoolId();
+        return currentRoundId[poolId];
     }
 
     // ============ Chainlink Automation Functions ============
@@ -724,7 +800,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      * @notice Check if upkeep is needed (called by Chainlink Automation)
      * @param checkData Not used, but required by interface
      * @return upkeepNeeded True if automation should trigger
-     * @return performData Encoded pool IDs that need draws
+     * @return performData Encoded pool IDs and forced draw flags
      */
     function checkUpkeep(bytes calldata checkData)
         external
@@ -736,13 +812,15 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
             return (false, "");
         }
 
-        // Check both pools
+        // Check both pools for regular draws and forced draws (90-day rule)
         bool pool0Eligible = _isPoolEligibleForAutoDraw(0);
         bool pool1Eligible = _isPoolEligibleForAutoDraw(1);
+        bool pool0Forced = _isPoolEligibleForForcedDraw(0);
+        bool pool1Forced = _isPoolEligibleForForcedDraw(1);
 
-        if (pool0Eligible || pool1Eligible) {
+        if (pool0Eligible || pool1Eligible || pool0Forced || pool1Forced) {
             upkeepNeeded = true;
-            performData = abi.encode(pool0Eligible, pool1Eligible);
+            performData = abi.encode(pool0Eligible, pool1Eligible, pool0Forced, pool1Forced);
         }
 
         return (upkeepNeeded, performData);
@@ -755,17 +833,22 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     function performUpkeep(bytes calldata performData) external override {
         if (!automationEnabled) return;
 
-        (bool pool0Eligible, bool pool1Eligible) = abi.decode(performData, (bool, bool));
+        (bool pool0Eligible, bool pool1Eligible, bool pool0Forced, bool pool1Forced) =
+            abi.decode(performData, (bool, bool, bool, bool));
 
-        // Double-check eligibility and trigger draws
-        if (pool0Eligible && _isPoolEligibleForAutoDraw(0)) {
+        // Forced draws take priority (90-day rule)
+        if (pool0Forced && _isPoolEligibleForForcedDraw(0)) {
+            _triggerAutomationDraw(0, true);
+        } else if (pool0Eligible && _isPoolEligibleForAutoDraw(0)) {
             lastAutomationDrawTime[0] = block.timestamp;
-            _triggerAutomationDraw(0);
+            _triggerAutomationDraw(0, false);
         }
 
-        if (pool1Eligible && _isPoolEligibleForAutoDraw(1)) {
+        if (pool1Forced && _isPoolEligibleForForcedDraw(1)) {
+            _triggerAutomationDraw(1, true);
+        } else if (pool1Eligible && _isPoolEligibleForAutoDraw(1)) {
             lastAutomationDrawTime[1] = block.timestamp;
-            _triggerAutomationDraw(1);
+            _triggerAutomationDraw(1, false);
         }
     }
 
@@ -793,10 +876,32 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     }
 
     /**
+     * @notice Check if a pool is eligible for a forced draw (90-day rule)
+     * @param poolId The pool to check
+     * @return True if eligible for forced draw
+     */
+    function _isPoolEligibleForForcedDraw(uint256 poolId) internal view returns (bool) {
+        Pool memory pool = pools[poolId];
+
+        // Not eligible if in grace period
+        if (pool.inGracePeriod) return false;
+
+        // Not eligible if VRF request is pending
+        if (pool.vrfRequestPending) return false;
+
+        // Not eligible if no entries
+        if (poolEntries[poolId].length == 0) return false;
+
+        // Eligible if 90 days have passed
+        return block.timestamp >= pool.roundStartTime + MAX_ROUND_DURATION;
+    }
+
+    /**
      * @notice Trigger an automated draw for a pool
      * @param poolId The pool to draw
+     * @param forced Whether this is a forced draw (90-day rule)
      */
-    function _triggerAutomationDraw(uint256 poolId) internal {
+    function _triggerAutomationDraw(uint256 poolId, bool forced) internal {
         Pool storage pool = pools[poolId];
 
         pool.vrfRequestPending = true;
@@ -816,10 +921,15 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         vrfRequests[requestId] = VRFRequest({
             poolId: poolId,
-            exists: true
+            exists: true,
+            forcedDraw: forced
         });
 
-        emit RandomnessRequested(poolId, requestId);
+        if (forced) {
+            emit ForcedDrawRequested(poolId, requestId);
+        } else {
+            emit RandomnessRequested(poolId, requestId);
+        }
     }
 
     // ============ Admin Functions ============
@@ -877,6 +987,20 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         minEntriesForDraw = minEntries;
         minIntervalBetweenDraws = minInterval;
         emit AutomationConfigUpdated(enabled, minEntries, minInterval);
+    }
+
+    /**
+     * @notice Emergency function to reset VRF pending state if callback fails
+     * @dev Only use if VRF callback failed and pool is stuck
+     * @param poolId The pool to reset
+     */
+    function emergencyResetVRF(uint256 poolId) external {
+        if (msg.sender != owner()) revert OnlyOwner();
+        if (poolId > 1) revert InvalidPoolId();
+        if (!pools[poolId].vrfRequestPending) revert NoVRFRequestPending();
+
+        pools[poolId].vrfRequestPending = false;
+        emit EmergencyVRFReset(poolId);
     }
 
 }

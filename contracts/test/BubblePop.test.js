@@ -163,7 +163,8 @@ describe("BubblePop", function () {
       // Check pool is in grace period
       const pool = await bubblePop.getPool(SMALL_POOL);
       expect(pool.inGracePeriod).to.be.true;
-      expect(pool.jackpot).to.equal(0);
+      // Jackpot should be 9.1% rollover (2 USDC * 910 / 10000 = 182000)
+      expect(pool.jackpot).to.equal(182000n);
       expect(pool.lastWinner).to.equal(player1.address);
     });
 
@@ -250,8 +251,8 @@ describe("BubblePop", function () {
         .to.be.revertedWithCustomError(bubblePop, "GracePeriodNotOver");
     });
 
-    it("Should allow ending grace period after 1 hour", async function () {
-      await time.increase(60 * 60); // 1 hour
+    it("Should allow ending grace period after 15 minutes", async function () {
+      await time.increase(15 * 60); // 15 minutes
       await expect(bubblePop.endGracePeriod(SMALL_POOL))
         .to.emit(bubblePop, "GracePeriodEnded");
 
@@ -266,7 +267,7 @@ describe("BubblePop", function () {
     });
 
     it("Should have correct grace period", async function () {
-      expect(await bubblePop.GRACE_PERIOD()).to.equal(3600); // 1 hour
+      expect(await bubblePop.GRACE_PERIOD()).to.equal(900); // 15 minutes
     });
 
     it("Should have correct escalation period", async function () {
@@ -369,6 +370,177 @@ describe("BubblePop", function () {
       expect(donors.length).to.equal(2);
       expect(donors[0]).to.equal(player2.address);
       expect(amounts[0]).to.equal(100n * ONE_USDC);
+    });
+  });
+
+  describe("90-Day Forced Draw", function () {
+    beforeEach(async function () {
+      // Add entries from both players
+      await bubblePop.connect(player1).enter(SMALL_POOL);
+      await bubblePop.connect(player2).enter(SMALL_POOL);
+    });
+
+    it("Should have correct max round duration constant", async function () {
+      expect(await bubblePop.MAX_ROUND_DURATION()).to.equal(90 * 24 * 60 * 60); // 90 days
+    });
+
+    it("Should not allow forced draw before 90 days", async function () {
+      await time.increase(89 * 24 * 60 * 60); // 89 days
+      await expect(bubblePop.requestForcedDraw(SMALL_POOL))
+        .to.be.revertedWithCustomError(bubblePop, "RoundNotExpired");
+    });
+
+    it("Should report round as not expired before 90 days", async function () {
+      await time.increase(89 * 24 * 60 * 60); // 89 days
+      expect(await bubblePop.isRoundExpired(SMALL_POOL)).to.be.false;
+    });
+
+    it("Should report round as expired after 90 days", async function () {
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+      expect(await bubblePop.isRoundExpired(SMALL_POOL)).to.be.true;
+    });
+
+    it("Should allow forced draw after 90 days", async function () {
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+      await expect(bubblePop.requestForcedDraw(SMALL_POOL))
+        .to.emit(bubblePop, "ForcedDrawRequested");
+    });
+
+    it("Should guarantee a winner on forced draw (no probability roll)", async function () {
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+
+      const tx = await bubblePop.requestForcedDraw(SMALL_POOL);
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(log => {
+        try {
+          return bubblePop.interface.parseLog(log)?.name === "ForcedDrawRequested";
+        } catch { return false; }
+      });
+      const requestId = bubblePop.interface.parseLog(event).args.requestId;
+
+      // Even with a random number that would normally LOSE (999999 % 1000000 = 999999 > max odds),
+      // forced draw guarantees a winner
+      await expect(vrfCoordinator.fulfillRandomWord(requestId, 999999))
+        .to.emit(bubblePop, "WinnerSelected");
+    });
+
+    it("Should start grace period after forced draw payout", async function () {
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+
+      const tx = await bubblePop.requestForcedDraw(SMALL_POOL);
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(log => {
+        try {
+          return bubblePop.interface.parseLog(log)?.name === "ForcedDrawRequested";
+        } catch { return false; }
+      });
+      const requestId = bubblePop.interface.parseLog(event).args.requestId;
+      await vrfCoordinator.fulfillRandomWord(requestId, 0);
+
+      const pool = await bubblePop.getPool(SMALL_POOL);
+      expect(pool.inGracePeriod).to.be.true;
+    });
+
+    it("Should start new round with rollover after forced draw and grace period", async function () {
+      const jackpotBefore = (await bubblePop.getPool(SMALL_POOL)).jackpot;
+
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+
+      const tx = await bubblePop.requestForcedDraw(SMALL_POOL);
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(log => {
+        try {
+          return bubblePop.interface.parseLog(log)?.name === "ForcedDrawRequested";
+        } catch { return false; }
+      });
+      const requestId = bubblePop.interface.parseLog(event).args.requestId;
+      await vrfCoordinator.fulfillRandomWord(requestId, 0);
+
+      // Pool should have 9.1% rollover
+      const expectedRollover = (jackpotBefore * 910n) / 10000n;
+      const pool = await bubblePop.getPool(SMALL_POOL);
+      expect(pool.jackpot).to.equal(expectedRollover);
+      expect(pool.inGracePeriod).to.be.true;
+
+      // End grace period
+      await time.increase(15 * 60); // 15 minutes
+      await bubblePop.endGracePeriod(SMALL_POOL);
+
+      // Verify new round started
+      const poolAfterGrace = await bubblePop.getPool(SMALL_POOL);
+      expect(poolAfterGrace.inGracePeriod).to.be.false;
+      expect(poolAfterGrace.totalEntries).to.equal(0);
+      expect(poolAfterGrace.jackpot).to.equal(expectedRollover); // Rollover is seed
+
+      // Should be able to enter again
+      await expect(bubblePop.connect(player1).enter(SMALL_POOL))
+        .to.emit(bubblePop, "EntrySubmitted");
+    });
+
+    it("Should increment round ID after forced draw", async function () {
+      const roundBefore = await bubblePop.getCurrentRoundId(SMALL_POOL);
+
+      await time.increase(90 * 24 * 60 * 60); // 90 days
+
+      const tx = await bubblePop.requestForcedDraw(SMALL_POOL);
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(log => {
+        try {
+          return bubblePop.interface.parseLog(log)?.name === "ForcedDrawRequested";
+        } catch { return false; }
+      });
+      const requestId = bubblePop.interface.parseLog(event).args.requestId;
+      await vrfCoordinator.fulfillRandomWord(requestId, 0);
+
+      const roundAfter = await bubblePop.getCurrentRoundId(SMALL_POOL);
+      expect(roundAfter).to.equal(roundBefore + 1n);
+    });
+
+    it("Should correctly report time until forced draw", async function () {
+      // At start, should be 90 days
+      const timeUntil = await bubblePop.getTimeUntilForcedDraw(SMALL_POOL);
+      expect(timeUntil).to.be.closeTo(90n * 24n * 60n * 60n, 10n);
+
+      // After 45 days, should be ~45 days remaining
+      await time.increase(45 * 24 * 60 * 60);
+      const timeUntilMid = await bubblePop.getTimeUntilForcedDraw(SMALL_POOL);
+      expect(timeUntilMid).to.be.closeTo(45n * 24n * 60n * 60n, 10n);
+
+      // After 90 days, should be 0
+      await time.increase(45 * 24 * 60 * 60);
+      const timeUntilEnd = await bubblePop.getTimeUntilForcedDraw(SMALL_POOL);
+      expect(timeUntilEnd).to.equal(0);
+    });
+  });
+
+  describe("Emergency VRF Reset", function () {
+    it("Should allow owner to reset stuck VRF state", async function () {
+      await bubblePop.connect(player1).enter(SMALL_POOL);
+      await bubblePop.requestRandomWinner(SMALL_POOL);
+
+      // Pool should have VRF pending
+      let pool = await bubblePop.getPool(SMALL_POOL);
+      expect(pool.vrfRequestPending).to.be.true;
+
+      // Owner can reset
+      await expect(bubblePop.emergencyResetVRF(SMALL_POOL))
+        .to.emit(bubblePop, "EmergencyVRFReset");
+
+      pool = await bubblePop.getPool(SMALL_POOL);
+      expect(pool.vrfRequestPending).to.be.false;
+    });
+
+    it("Should revert if no VRF request pending", async function () {
+      await expect(bubblePop.emergencyResetVRF(SMALL_POOL))
+        .to.be.revertedWithCustomError(bubblePop, "NoVRFRequestPending");
+    });
+
+    it("Should revert if called by non-owner", async function () {
+      await bubblePop.connect(player1).enter(SMALL_POOL);
+      await bubblePop.requestRandomWinner(SMALL_POOL);
+
+      await expect(bubblePop.connect(player1).emergencyResetVRF(SMALL_POOL))
+        .to.be.revertedWithCustomError(bubblePop, "OnlyOwner");
     });
   });
 });
