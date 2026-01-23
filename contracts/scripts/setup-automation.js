@@ -5,7 +5,7 @@ async function main() {
   console.log("Setting up automation with account:", owner.address);
 
   // Contract address - update this after deployment
-  const BUBBLEPOP_ADDRESS = "0x9cde6D6Bd44790538a0548B6624a1c683A874e28";
+  const BUBBLEPOP_ADDRESS = "0x0A36BA086aF3843c7b168523651DE80ccC1C79Ca";
 
   const bubblePop = await hre.ethers.getContractAt("BubblePop", BUBBLEPOP_ADDRESS);
 
