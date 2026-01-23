@@ -7,7 +7,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'What are the odds of winning?',
-    answer: 'Odds start at 0.001% per entry and gradually increase to 0.01% over 14 days. This gentle escalation means longer rounds build bigger jackpots while still giving early entries a chance.',
+    answer: 'Odds start at 0.01% per entry and gradually increase to 0.07% over 14 days. This gentle escalation means longer rounds build bigger jackpots while still giving early entries a chance.',
   },
   {
     question: 'Is the game fair?',
@@ -15,15 +15,15 @@ const FAQ_ITEMS = [
   },
   {
     question: 'What happens when someone wins?',
-    answer: 'The winner receives 90% of the jackpot instantly to their wallet. 9.1% rolls over to seed the next round\'s jackpot (so the pot is never empty!), and 0.9% goes to the house to keep the lights on. After a short grace period, a new round begins with the rolled-over funds.',
+    answer: 'The winner receives 90% of the jackpot instantly to their wallet. 7.5% rolls over to seed the next round\'s jackpot (so the pot is never empty!), and 2.5% goes to the house to keep the lights on. After a short grace period, a new round begins with the rolled-over funds.',
   },
   {
     question: 'What is the Rolling Pot?',
-    answer: 'When someone wins, 9.1% of the jackpot automatically seeds the next round. This means the jackpot is never zero - every new round starts with funds already in the pot. The more people play over time, the larger these rolling seed amounts become!',
+    answer: 'When someone wins, 7.5% of the jackpot automatically seeds the next round. This means the jackpot is never zero - every new round starts with funds already in the pot. The more people play over time, the larger these rolling seed amounts become!',
   },
   {
     question: 'What if nobody wins for a long time?',
-    answer: 'If 90 days pass without a winner, the contract automatically triggers a guaranteed payout. One random entry from the current round is selected as the winner using Chainlink VRF. Same rules apply: 90% to winner, 9.1% rolls over, 0.9% to house. This ensures no round lasts forever and every pool eventually pays out!',
+    answer: 'If 90 days pass without a winner, the contract automatically triggers a guaranteed payout. One random entry from the current round is selected as the winner using Chainlink VRF. Same rules apply: 90% to winner, 7.5% rolls over, 2.5% to house. This ensures no round lasts forever and every pool eventually pays out!',
   },
   {
     question: 'What is USDC?',

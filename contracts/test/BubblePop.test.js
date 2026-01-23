@@ -163,8 +163,8 @@ describe("BubblePop", function () {
       // Check pool is in grace period
       const pool = await bubblePop.getPool(SMALL_POOL);
       expect(pool.inGracePeriod).to.be.true;
-      // Jackpot should be 9.1% rollover (2 USDC * 910 / 10000 = 182000)
-      expect(pool.jackpot).to.equal(182000n);
+      // Jackpot should be 7.5% rollover (2 USDC * 750 / 10000 = 150000)
+      expect(pool.jackpot).to.equal(150000n);
       expect(pool.lastWinner).to.equal(player1.address);
     });
 
@@ -200,28 +200,28 @@ describe("BubblePop", function () {
   });
 
   describe("Escalating Odds", function () {
-    it("Should start at 0.001% (10 out of 1,000,000)", async function () {
+    it("Should start at 0.01% (100 out of 1,000,000)", async function () {
       const odds = await bubblePop.getCurrentWinChance(SMALL_POOL);
-      expect(odds).to.equal(10); // 0.001%
+      expect(odds).to.equal(100); // 0.01%
     });
 
-    it("Should reach 0.01% cap after 14 days", async function () {
+    it("Should reach 0.07% cap after 14 days", async function () {
       await time.increase(14 * 24 * 60 * 60);
       const odds = await bubblePop.getCurrentWinChance(SMALL_POOL);
-      expect(odds).to.equal(100); // 0.01% cap
+      expect(odds).to.equal(700); // 0.07% cap
     });
 
     it("Should increase linearly over time", async function () {
-      // After 7 days (half of 14), should be ~55 (halfway between 10 and 100)
+      // After 7 days (half of 14), should be ~400 (halfway between 100 and 700)
       await time.increase(7 * 24 * 60 * 60);
       const odds = await bubblePop.getCurrentWinChance(SMALL_POOL);
-      expect(odds).to.be.closeTo(55, 2); // ~0.0055%
+      expect(odds).to.be.closeTo(400, 5); // ~0.04%
     });
 
     it("Should cap and not exceed max after escalation period", async function () {
       await time.increase(30 * 24 * 60 * 60); // 30 days
       const odds = await bubblePop.getCurrentWinChance(SMALL_POOL);
-      expect(odds).to.equal(100); // Still capped at 0.01%
+      expect(odds).to.equal(700); // Still capped at 0.07%
     });
   });
 
@@ -263,7 +263,7 @@ describe("BubblePop", function () {
 
   describe("Constants", function () {
     it("Should have correct house fee", async function () {
-      expect(await bubblePop.HOUSE_FEE_BPS()).to.equal(90); // 0.9%
+      expect(await bubblePop.HOUSE_FEE_BPS()).to.equal(250); // 2.5%
     });
 
     it("Should have correct grace period", async function () {
@@ -456,8 +456,8 @@ describe("BubblePop", function () {
       const requestId = bubblePop.interface.parseLog(event).args.requestId;
       await vrfCoordinator.fulfillRandomWord(requestId, 0);
 
-      // Pool should have 9.1% rollover
-      const expectedRollover = (jackpotBefore * 910n) / 10000n;
+      // Pool should have 7.5% rollover
+      const expectedRollover = (jackpotBefore * 750n) / 10000n;
       const pool = await bubblePop.getPool(SMALL_POOL);
       expect(pool.jackpot).to.equal(expectedRollover);
       expect(pool.inGracePeriod).to.be.true;

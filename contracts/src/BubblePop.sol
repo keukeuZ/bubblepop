@@ -50,8 +50,8 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
     // ============ Constants ============
 
-    uint256 public constant HOUSE_FEE_BPS = 90; // 0.9% = 90 basis points
-    uint256 public constant ROLLOVER_BPS = 910; // 9.1% = 910 basis points
+    uint256 public constant HOUSE_FEE_BPS = 250; // 2.5% = 250 basis points
+    uint256 public constant ROLLOVER_BPS = 750; // 7.5% = 750 basis points
     uint256 public constant BPS_DENOMINATOR = 10000;
     uint256 public constant GRACE_PERIOD = 15 minutes;
     uint256 public constant MAX_ROUND_DURATION = 90 days; // Force draw after 90 days
@@ -61,8 +61,8 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
     // Escalating odds: gentle curve, no guarantee
     // Using 1,000,000 as denominator for finer granularity
     uint256 public constant CHANCE_DENOMINATOR = 1000000;   // For percentage calculations
-    uint256 public constant BASE_WIN_CHANCE = 10;           // 0.001% (10/1,000,000)
-    uint256 public constant MAX_WIN_CHANCE = 100;           // 0.01% cap (100/1,000,000)
+    uint256 public constant BASE_WIN_CHANCE = 100;          // 0.01% (100/1,000,000)
+    uint256 public constant MAX_WIN_CHANCE = 700;           // 0.07% cap (700/1,000,000)
     uint256 public constant ESCALATION_PERIOD = 14 days;    // Time to reach cap
 
     // Donation/Sponsor board constants
