@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const bubblePopAddress = "0x0A36BA086aF3843c7b168523651DE80ccC1C79Ca";
+  const bubblePopAddress = "0x03c698e2162847E81A84614F7F4d6A10853Df3Db";
   const poolId = process.argv[2] || "0"; // Default to small pool
   const seed = process.argv[3] || Math.floor(Math.random() * 1000000).toString();
 

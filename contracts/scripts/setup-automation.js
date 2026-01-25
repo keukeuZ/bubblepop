@@ -5,14 +5,14 @@ async function main() {
   console.log("Setting up automation with account:", owner.address);
 
   // Contract address - update this after deployment
-  const BUBBLEPOP_ADDRESS = "0x0A36BA086aF3843c7b168523651DE80ccC1C79Ca";
+  const BUBBLEPOP_ADDRESS = "0x03c698e2162847E81A84614F7F4d6A10853Df3Db";
 
   const bubblePop = await hre.ethers.getContractAt("BubblePop", BUBBLEPOP_ADDRESS);
 
   // Configuration for automation
   const enabled = true;
   const minEntries = 1;  // Minimum entries before draw eligible
-  const minInterval = 3600; // 1 hour in seconds (adjust as needed)
+  const minInterval = 14400; // 4 hours in seconds
 
   console.log("\nCurrent automation config:");
   console.log("- automationEnabled:", await bubblePop.automationEnabled());

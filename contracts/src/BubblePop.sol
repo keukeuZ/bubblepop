@@ -1003,4 +1003,23 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         emit EmergencyVRFReset(poolId);
     }
 
+    /**
+     * @notice Test draw function for testnet only - bypasses VRF
+     * @dev Uses provided seed for randomness. REMOVE FOR PRODUCTION!
+     * @param poolId The pool to draw
+     * @param seed Random seed provided by caller
+     */
+    function testDraw(uint256 poolId, uint256 seed) external onlyAuthorized {
+        if (poolId > 1) revert InvalidPoolId();
+
+        Pool storage pool = pools[poolId];
+
+        if (pool.inGracePeriod) revert PoolInGracePeriod();
+        if (pool.vrfRequestPending) revert VRFRequestPending();
+        if (poolEntries[poolId].length == 0) revert NoEntries();
+
+        // Directly process winner using the provided seed
+        _processWinner(poolId, seed, 0);
+    }
+
 }

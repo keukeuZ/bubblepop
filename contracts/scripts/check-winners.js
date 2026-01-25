@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const bubblePopAddress = "0x0A36BA086aF3843c7b168523651DE80ccC1C79Ca";
+  const bubblePopAddress = "0x03c698e2162847E81A84614F7F4d6A10853Df3Db";
   const BubblePop = await hre.ethers.getContractFactory("BubblePop");
   const bubblePop = BubblePop.attach(bubblePopAddress);
 

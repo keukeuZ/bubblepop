@@ -31,8 +31,8 @@ async function main() {
 
   } else if (network === "baseSepolia") {
     // Base Sepolia testnet addresses
-    // VRF Coordinator v2.5 on Base Sepolia
-    vrfCoordinator = "0xd691f04bc0C9a24Edb78af9E005Cf85768F694C9";
+    // VRF Coordinator v2.5 on Base Sepolia (from https://vrf.chain.link/base-sepolia)
+    vrfCoordinator = "0x5C210eF41CD1a72de73bF76eC39637bB0d3d7BEE";
     // You'll need to deploy a mock USDC or use a test token
     // For now, we'll deploy our mock USDC
     console.log("\nDeploying MockUSDC for testing...");

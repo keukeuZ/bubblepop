@@ -1,8 +1,8 @@
 const hre = require("hardhat");
 
 async function main() {
-  const bubblePopAddress = "0x0A36BA086aF3843c7b168523651DE80ccC1C79Ca";
-  const mockUSDCAddress = "0xc89fa0Ff7f3D39e4b5e5E921C2D82391480dc3cd";
+  const bubblePopAddress = "0x03c698e2162847E81A84614F7F4d6A10853Df3Db";
+  const mockUSDCAddress = "0xBB565fDeb1C4d6e9A3478dC5c128F9FC33133B8d";
   const poolId = process.argv[2] || "0"; // Default to small pool
 
   const [signer] = await hre.ethers.getSigners();
