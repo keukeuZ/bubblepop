@@ -55,9 +55,21 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     inGracePeriod,
     gracePeriodEnd,
     gracePeriodElapsed,
+    roundId,
+    timeUntilForcedDraw,
     isLoading: poolLoading,
     refetch: refetchPool,
   } = usePoolData(poolId);
+
+  // Format time until forced draw
+  const formatForcedDrawTime = (seconds) => {
+    if (seconds <= 0) return 'Eligible now';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    if (days > 0) return `${days}d ${hours}h`;
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
 
   // Read player's entries
   const { entries: playerEntries } = usePlayerEntries(poolId, address);
@@ -341,12 +353,20 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
               </span>
             </div>
             <div className="stat">
-              <span className="stat-label">Status</span>
-              <span className={`stat-value ${isOpen ? 'nes-text is-success' : 'nes-text is-warning'}`}>
-                {hasContract ? (isOpen ? 'Open' : 'Paused') : 'N/A'}
-              </span>
+              <span className="stat-label">Round</span>
+              <span className="stat-value">#{hasContract ? roundId + 1 : 1}</span>
             </div>
           </div>
+
+          {/* Guaranteed Winner Countdown - 90 day rule */}
+          {hasContract && timeUntilForcedDraw > 0 && (
+            <div className="forced-draw-info">
+              <span className="forced-draw-label">Guaranteed winner in:</span>
+              <span className="forced-draw-time nes-text is-warning">
+                {formatForcedDrawTime(timeUntilForcedDraw)}
+              </span>
+            </div>
+          )}
         </>
       )}
 

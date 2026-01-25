@@ -140,6 +140,18 @@ export function usePoolData(poolId) {
         functionName: 'getGracePeriodEnd',
         args: [poolId],
       },
+      {
+        address: contractAddress,
+        abi: BUBBLEPOP_ABI,
+        functionName: 'getTimeUntilForcedDraw',
+        args: [poolId],
+      },
+      {
+        address: contractAddress,
+        abi: BUBBLEPOP_ABI,
+        functionName: 'getCurrentRoundId',
+        args: [poolId],
+      },
     ],
     query: {
       enabled: !!contractAddress,
@@ -151,6 +163,8 @@ export function usePoolData(poolId) {
   const winChance = data?.[1]?.result;
   const entryCount = data?.[2]?.result;
   const gracePeriodEnd = data?.[3]?.result;
+  const timeUntilForcedDraw = data?.[4]?.result;
+  const roundId = data?.[5]?.result;
 
   // Check if pool is open for entries
   // Pool is open if:
@@ -160,6 +174,10 @@ export function usePoolData(poolId) {
   const now = Math.floor(Date.now() / 1000);
   const gracePeriodElapsed = gracePeriodEndTime > 0 && now >= gracePeriodEndTime;
   const isOpen = pool ? (!pool.inGracePeriod || gracePeriodElapsed) : true;
+
+  // Forced draw info (90-day rule)
+  const secondsUntilForcedDraw = timeUntilForcedDraw ? Number(timeUntilForcedDraw) : 0;
+  const isRoundExpired = secondsUntilForcedDraw === 0 && !pool?.inGracePeriod;
 
   return {
     pool,
@@ -172,6 +190,10 @@ export function usePoolData(poolId) {
     inGracePeriod: pool?.inGracePeriod || false,
     gracePeriodEnd: gracePeriodEndTime,
     gracePeriodElapsed,
+    // New fields for 90-day rule and round tracking
+    roundId: roundId ? Number(roundId) : 0,
+    timeUntilForcedDraw: secondsUntilForcedDraw,
+    isRoundExpired,
     isLoading,
     error,
     refetch,

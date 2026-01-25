@@ -149,6 +149,28 @@ export const BUBBLEPOP_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  // 90-day forced draw functions
+  {
+    inputs: [{ name: "poolId", type: "uint256" }],
+    name: "isRoundExpired",
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "poolId", type: "uint256" }],
+    name: "getTimeUntilForcedDraw",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ name: "poolId", type: "uint256" }],
+    name: "getCurrentRoundId",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
   // Events
   {
     anonymous: false,
@@ -197,6 +219,25 @@ export const BUBBLEPOP_ABI = [
       { indexed: false, name: "newJackpot", type: "uint256" },
     ],
     name: "DonationReceived",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "poolId", type: "uint256" },
+      { indexed: true, name: "requestId", type: "uint256" },
+      { indexed: false, name: "currentOdds", type: "uint256" },
+    ],
+    name: "NoWinnerThisRoll",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "poolId", type: "uint256" },
+      { indexed: false, name: "roundId", type: "uint256" },
+    ],
+    name: "NewRoundStarted",
     type: "event",
   },
 ];

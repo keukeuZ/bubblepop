@@ -27,12 +27,38 @@ const donationPhrases = [
   "added to the pot!",
 ];
 
+// Phrases for no winner draws
+const noWinnerPhrases = [
+  "No winner this time!",
+  "The bubble didn't pop!",
+  "Jackpot grows bigger!",
+  "Try again next draw!",
+  "Better luck next time!",
+  "The hunt continues!",
+];
+
+// Phrases for new rounds
+const newRoundPhrases = [
+  "New round started!",
+  "Fresh round begins!",
+  "Round reset!",
+  "New game, new chances!",
+];
+
 function getRandomEntryPhrase() {
   return entryPhrases[Math.floor(Math.random() * entryPhrases.length)];
 }
 
 function getRandomDonationPhrase() {
   return donationPhrases[Math.floor(Math.random() * donationPhrases.length)];
+}
+
+function getRandomNoWinnerPhrase() {
+  return noWinnerPhrases[Math.floor(Math.random() * noWinnerPhrases.length)];
+}
+
+function getRandomNewRoundPhrase() {
+  return newRoundPhrases[Math.floor(Math.random() * newRoundPhrases.length)];
 }
 
 export function LiveEntries() {
@@ -89,6 +115,37 @@ export function LiveEntries() {
         toBlock,
       });
 
+      // Fetch NoWinnerThisRoll events
+      const noWinnerLogs = await publicClient.getLogs({
+        address: contracts.bubblePop,
+        event: {
+          type: 'event',
+          name: 'NoWinnerThisRoll',
+          inputs: [
+            { indexed: true, name: 'poolId', type: 'uint256' },
+            { indexed: true, name: 'requestId', type: 'uint256' },
+            { indexed: false, name: 'currentOdds', type: 'uint256' },
+          ],
+        },
+        fromBlock,
+        toBlock,
+      });
+
+      // Fetch NewRoundStarted events
+      const newRoundLogs = await publicClient.getLogs({
+        address: contracts.bubblePop,
+        event: {
+          type: 'event',
+          name: 'NewRoundStarted',
+          inputs: [
+            { indexed: true, name: 'poolId', type: 'uint256' },
+            { indexed: false, name: 'roundId', type: 'uint256' },
+          ],
+        },
+        fromBlock,
+        toBlock,
+      });
+
       // Process entry events
       const entries = entryLogs.map((log) => {
         const poolId = Number(log.args.poolId);
@@ -118,8 +175,30 @@ export function LiveEntries() {
         phrase: getRandomDonationPhrase(),
       }));
 
+      // Process NoWinnerThisRoll events
+      const noWinners = noWinnerLogs.map((log) => ({
+        id: `${log.transactionHash}-${log.logIndex}`,
+        type: 'noWinner',
+        poolId: Number(log.args.poolId),
+        odds: log.args.currentOdds,
+        blockNumber: log.blockNumber,
+        timestamp: Date.now(),
+        phrase: getRandomNoWinnerPhrase(),
+      }));
+
+      // Process NewRoundStarted events
+      const newRounds = newRoundLogs.map((log) => ({
+        id: `${log.transactionHash}-${log.logIndex}`,
+        type: 'newRound',
+        poolId: Number(log.args.poolId),
+        roundId: Number(log.args.roundId),
+        blockNumber: log.blockNumber,
+        timestamp: Date.now(),
+        phrase: getRandomNewRoundPhrase(),
+      }));
+
       // Combine and sort by block number
-      const allEvents = [...entries, ...donations].sort(
+      const allEvents = [...entries, ...donations, ...noWinners, ...newRounds].sort(
         (a, b) => Number(a.blockNumber) - Number(b.blockNumber)
       );
 
@@ -210,19 +289,38 @@ export function LiveEntries() {
         ) : (
           <div className="entries-list">
             {entries.map((entry) => (
-              <div key={entry.id} className={`entry-item ${entry.type === 'donation' ? 'is-donation' : ''}`}>
+              <div key={entry.id} className={`entry-item ${entry.type === 'donation' ? 'is-donation' : ''} ${entry.type === 'noWinner' ? 'is-no-winner' : ''} ${entry.type === 'newRound' ? 'is-new-round' : ''}`}>
                 <span className="entry-pool">
-                  {entry.type === 'donation'
-                    ? '💎'
-                    : (entry.poolId === 0 ? '🎈' : '🎪')}
+                  {entry.type === 'donation' && '💎'}
+                  {entry.type === 'entry' && (entry.poolId === 0 ? '🎈' : '🎪')}
+                  {entry.type === 'noWinner' && '🎲'}
+                  {entry.type === 'newRound' && '🔄'}
                 </span>
-                <span className="entry-player">
-                  <AddressDisplay address={entry.player} />
-                </span>
-                <span className="entry-phrase">{entry.phrase}</span>
-                <span className={`entry-amount ${entry.type === 'donation' ? 'nes-text is-primary' : 'nes-text is-success'}`}>
-                  +{formatUSDC(entry.amount)} USDC
-                </span>
+                {entry.type === 'entry' || entry.type === 'donation' ? (
+                  <>
+                    <span className="entry-player">
+                      <AddressDisplay address={entry.player} />
+                    </span>
+                    <span className="entry-phrase">{entry.phrase}</span>
+                    <span className={`entry-amount ${entry.type === 'donation' ? 'nes-text is-primary' : 'nes-text is-success'}`}>
+                      +{formatUSDC(entry.amount)} USDC
+                    </span>
+                  </>
+                ) : entry.type === 'noWinner' ? (
+                  <>
+                    <span className="entry-phrase">{entry.phrase}</span>
+                    <span className="entry-odds nes-text is-warning">
+                      {entry.poolId === 0 ? 'Small' : 'Big'} Pool @ {(Number(entry.odds) / 10000).toFixed(3)}%
+                    </span>
+                  </>
+                ) : entry.type === 'newRound' ? (
+                  <>
+                    <span className="entry-phrase">{entry.phrase}</span>
+                    <span className="entry-round nes-text is-primary">
+                      {entry.poolId === 0 ? 'Small' : 'Big'} Pool - Round #{entry.roundId}
+                    </span>
+                  </>
+                ) : null}
               </div>
             ))}
           </div>
