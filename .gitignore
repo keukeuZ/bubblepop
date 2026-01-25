@@ -58,3 +58,11 @@ TODO.md
 NOTES.md
 *.todo
 *.scratch
+MAINNET_CHECKLIST.md
+
+# Debug scripts (dev only)
+contracts/scripts/debug-*.js
+contracts/scripts/find-*.js
+contracts/scripts/quick-*.js
+contracts/scripts/test-vrf-*.js
+contracts/scripts/verify-*.js
