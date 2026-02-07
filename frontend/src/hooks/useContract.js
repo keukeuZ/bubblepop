@@ -1,6 +1,6 @@
 import { useReadContract, useReadContracts } from 'wagmi';
 import { BUBBLEPOP_ABI, ERC20_ABI } from '../contracts/BubblePopABI';
-import { contracts } from '../config/wagmi';
+import { useContracts } from './useContracts';
 
 // Pool IDs
 export const SMALL_POOL = 0;
@@ -38,7 +38,7 @@ export function formatWinChance(rawChance) {
  * Hook to read pool data
  */
 export function usePool(poolId) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error, refetch } = useReadContract({
     address: contractAddress,
@@ -63,7 +63,7 @@ export function usePool(poolId) {
  * Hook to read current win chance
  */
 export function useWinChance(poolId) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error } = useReadContract({
     address: contractAddress,
@@ -88,7 +88,7 @@ export function useWinChance(poolId) {
  * Hook to read player's entry count
  */
 export function usePlayerEntries(poolId, playerAddress) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error } = useReadContract({
     address: contractAddress,
@@ -112,7 +112,7 @@ export function usePlayerEntries(poolId, playerAddress) {
  * Hook to read all pool data at once
  */
 export function usePoolData(poolId) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error, refetch } = useReadContracts({
     contracts: [
@@ -204,10 +204,9 @@ export function usePoolData(poolId) {
  * Hook to check USDC balance and allowance
  */
 export function useUSDCBalance(userAddress) {
-  const usdcAddress = contracts.usdc;
-  const bubblePopAddress = contracts.bubblePop;
+  const { usdc: usdcAddress, bubblePop: bubblePopAddress } = useContracts();
 
-  const { data, isLoading, error } = useReadContracts({
+  const { data, isLoading, error, refetch } = useReadContracts({
     contracts: [
       {
         address: usdcAddress,
@@ -238,5 +237,6 @@ export function useUSDCBalance(userAddress) {
     allowanceFormatted: formatUSDC(allowance),
     isLoading,
     error,
+    refetch,
   };
 }

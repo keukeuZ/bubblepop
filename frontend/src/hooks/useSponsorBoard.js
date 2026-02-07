@@ -1,12 +1,12 @@
 import { useReadContract } from 'wagmi';
 import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
-import { contracts } from '../config/wagmi';
+import { useContracts } from './useContracts';
 
 /**
  * Hook to get top donors for current round of a specific pool
  */
 export function useTopDonorsCurrentRound(poolId, maxResults = 10) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error, refetch } = useReadContract({
     address: contractAddress,
@@ -41,7 +41,7 @@ export function useTopDonorsCurrentRound(poolId, maxResults = 10) {
  * Hook to get top donors yearly (365-day window)
  */
 export function useTopDonorsYearly(maxResults = 3) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error, refetch } = useReadContract({
     address: contractAddress,

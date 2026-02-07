@@ -14,7 +14,7 @@ import { useTransactionToast } from '../hooks/useTransactionToast';
 import { useToast } from './Toast';
 import { GracePeriodCountdown } from './GracePeriodCountdown';
 import { PoolTimer } from './PoolTimer';
-import { contracts } from '../config/wagmi';
+import { useContracts } from '../hooks/useContracts';
 
 // Random fun phrases shown before/during entry
 const entryPhrases = [
@@ -37,6 +37,7 @@ function getRandomPhrase() {
 export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   const { isConnected, address } = useAccount();
   const toast = useToast();
+  const contracts = useContracts();
   const hasContract = !!contracts.bubblePop;
 
   // Donation state
@@ -80,6 +81,7 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     balance: usdcBalance,
     balanceFormatted: usdcBalanceFormatted,
     allowance,
+    refetch: refetchBalance,
   } = useUSDCBalance(address);
 
   // Entry flow hooks
@@ -105,10 +107,20 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   // Check if approval is needed
   const needsApproval = allowance !== undefined && allowance < entryPrice;
 
+  // Parse and validate donation amount (before toast hooks so closures capture correctly)
+  const parsedDonationAmount = parseAmount(donationAmount);
+  const hasEnoughForDonation = usdcBalance && parsedDonationAmount > 0n && usdcBalance >= parsedDonationAmount;
+  const needsDonationApproval = allowance !== undefined && parsedDonationAmount > 0n && allowance < parsedDonationAmount;
+
   // Transaction feedback toasts
   useTransactionToast(approval, toast, {
-    successMessage: 'USDC approved! Now you can enter.',
+    successMessage: 'USDC approved! Entering pool...',
     errorPrefix: 'Approval failed',
+    onSuccess: () => {
+      refetchBalance();
+      // Auto-trigger entry after approval
+      entry.enter(poolId);
+    },
   });
 
   const luckMessages = [
@@ -121,12 +133,19 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   useTransactionToast(entry, toast, {
     successMessage: luckMessages[Math.floor(Math.random() * luckMessages.length)],
     errorPrefix: 'Entry failed',
-    onSuccess: () => { refetchPool(); setEntryPhrase(getRandomPhrase()); },
+    onSuccess: () => { refetchPool(); refetchBalance(); setEntryPhrase(getRandomPhrase()); },
   });
 
   useTransactionToast(donationApproval, toast, {
-    successMessage: 'USDC approved! Now you can donate.',
+    successMessage: 'USDC approved! Donating...',
     errorPrefix: 'Approval failed',
+    onSuccess: () => {
+      refetchBalance();
+      // Auto-trigger donation after approval
+      if (parsedDonationAmount > 0n) {
+        donation.donate(poolId, parsedDonationAmount);
+      }
+    },
   });
 
   useTransactionToast(donation, toast, {
@@ -134,11 +153,6 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
     errorPrefix: 'Donation failed',
     onSuccess: () => { setDonationAmount(''); setShowDonation(false); refetchPool(); refetchDonation(); },
   });
-
-  // Parse and validate donation amount
-  const parsedDonationAmount = parseAmount(donationAmount);
-  const hasEnoughForDonation = usdcBalance && parsedDonationAmount > 0n && usdcBalance >= parsedDonationAmount;
-  const needsDonationApproval = allowance !== undefined && parsedDonationAmount > 0n && allowance < parsedDonationAmount;
 
   const handleEnter = async () => {
     if (!hasContract) {

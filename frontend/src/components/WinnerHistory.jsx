@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient, useBlockNumber, useChainId } from 'wagmi';
-import { contracts, CHAIN_IDS } from '../config/wagmi';
+import { CHAIN_IDS } from '../config/wagmi';
+import { useContracts } from '../hooks/useContracts';
 import { SMALL_POOL, formatUSDC } from '../hooks/useContract';
 import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
 import { AddressDisplay } from './AddressDisplay';
@@ -14,6 +15,7 @@ export function WinnerHistory() {
   const publicClient = usePublicClient({ chainId });
   const { data: currentBlock } = useBlockNumber({ chainId, watch: true });
 
+  const contracts = useContracts();
   const hasContract = !!contracts.bubblePop;
 
   // Get block explorer URL based on network

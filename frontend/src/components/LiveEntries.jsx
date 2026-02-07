@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient, useBlockNumber } from 'wagmi';
-import { contracts } from '../config/wagmi';
+import { useContracts } from '../hooks/useContracts';
 import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
 import { AddressDisplay } from './AddressDisplay';
 import { formatUSDC } from '../hooks/useContract';
@@ -64,6 +64,7 @@ function getRandomNewRoundPhrase() {
 export function LiveEntries() {
   const [entries, setEntries] = useState([]);
   const [lastFetchedBlock, setLastFetchedBlock] = useState(null);
+  const contracts = useContracts();
   const hasContract = !!contracts.bubblePop;
 
   const publicClient = usePublicClient();

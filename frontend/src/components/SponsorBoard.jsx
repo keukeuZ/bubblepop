@@ -1,6 +1,6 @@
 import { useTopDonorsCurrentRound, useTopDonorsYearly } from '../hooks/useSponsorBoard';
 import { formatUSDC, SMALL_POOL, BIG_POOL } from '../hooks/useContract';
-import { contracts } from '../config/wagmi';
+import { useContracts } from '../hooks/useContracts';
 import { AddressDisplay } from './AddressDisplay';
 
 function DonorList({ donors, emptyMessage }) {
@@ -63,6 +63,7 @@ function YearlyDonorBoard() {
 }
 
 export function SponsorBoard() {
+  const contracts = useContracts();
   const hasContract = !!contracts.bubblePop;
 
   if (!hasContract) {

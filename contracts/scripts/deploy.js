@@ -63,7 +63,22 @@ async function main() {
     vrfCoordinator = "0xd5D517aBE5cF79B7e95eC98dB0f0277788aFF634";
     usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Real USDC on Base
     subscriptionId = process.env.VRF_SUBSCRIPTION_ID || 0n;
-    keyHash = "0x9e1344a1247c8a1785d0a4681a27152bffdb43666ae5bf7d14d24a5efd44bf71";
+    // Key hash from your VRF subscription at https://vrf.chain.link/base
+    keyHash = process.env.VRF_KEY_HASH;
+
+    if (!keyHash) {
+      console.log("\n⚠️  WARNING: VRF_KEY_HASH not set!");
+      console.log("Get it from your VRF subscription at https://vrf.chain.link/base");
+      console.log("Add VRF_KEY_HASH=0x... to your .env file\n");
+      process.exit(1);
+    }
+
+    if (subscriptionId === 0n) {
+      console.log("\n⚠️  WARNING: VRF_SUBSCRIPTION_ID not set!");
+      console.log("Create a subscription at https://vrf.chain.link/base");
+      console.log("Fund it with LINK, then add VRF_SUBSCRIPTION_ID to .env\n");
+      process.exit(1);
+    }
   }
 
   // Deploy BubblePop

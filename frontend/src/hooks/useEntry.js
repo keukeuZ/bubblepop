@@ -1,13 +1,15 @@
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits } from 'viem';
 import { BUBBLEPOP_ABI, ERC20_ABI } from '../contracts/BubblePopABI';
-import { contracts } from '../config/wagmi';
+import { useContracts } from './useContracts';
 import { USDC_DECIMALS, SMALL_POOL } from './useContract';
 
 /**
  * Hook to handle USDC approval
  */
 export function useApproveUSDC() {
+  const { usdc: usdcAddress, bubblePop: bubblePopAddress } = useContracts();
+
   const {
     data: hash,
     writeContract,
@@ -21,10 +23,7 @@ export function useApproveUSDC() {
     isSuccess: isConfirmed,
   } = useWaitForTransactionReceipt({ hash });
 
-  const approve = async (amount) => {
-    const usdcAddress = contracts.usdc;
-    const bubblePopAddress = contracts.bubblePop;
-
+  const approve = (amount) => {
     if (!usdcAddress || !bubblePopAddress) {
       throw new Error('Contract addresses not configured');
     }
@@ -37,10 +36,10 @@ export function useApproveUSDC() {
     });
   };
 
-  const approveMax = async () => {
+  const approveMax = () => {
     // Approve max uint256 for convenience
     const maxAmount = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-    await approve(maxAmount);
+    approve(maxAmount);
   };
 
   return {
@@ -59,6 +58,8 @@ export function useApproveUSDC() {
  * Hook to handle entering a pool
  */
 export function useEnterPool() {
+  const { bubblePop: bubblePopAddress } = useContracts();
+
   const {
     data: hash,
     writeContract,
@@ -72,9 +73,7 @@ export function useEnterPool() {
     isSuccess: isConfirmed,
   } = useWaitForTransactionReceipt({ hash });
 
-  const enter = async (poolId) => {
-    const bubblePopAddress = contracts.bubblePop;
-
+  const enter = (poolId) => {
     if (!bubblePopAddress) {
       throw new Error('Contract address not configured');
     }

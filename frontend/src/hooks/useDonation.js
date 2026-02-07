@@ -1,7 +1,7 @@
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseUnits } from 'viem';
 import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
-import { contracts } from '../config/wagmi';
+import { useContracts } from './useContracts';
 import { USDC_DECIMALS } from './useContract';
 import { useApproveUSDC } from './useEntry';
 
@@ -9,6 +9,8 @@ import { useApproveUSDC } from './useEntry';
  * Hook to handle donation transaction
  */
 export function useDonateToPool() {
+  const { bubblePop: bubblePopAddress } = useContracts();
+
   const {
     data: hash,
     writeContract,
@@ -22,9 +24,7 @@ export function useDonateToPool() {
     isSuccess: isConfirmed,
   } = useWaitForTransactionReceipt({ hash });
 
-  const donate = async (poolId, amount) => {
-    const bubblePopAddress = contracts.bubblePop;
-
+  const donate = (poolId, amount) => {
     if (!bubblePopAddress) {
       throw new Error('Contract address not configured');
     }
@@ -52,7 +52,7 @@ export function useDonateToPool() {
  * Hook to get user's donation amount for current round
  */
 export function useUserDonation(poolId, userAddress) {
-  const contractAddress = contracts.bubblePop;
+  const { bubblePop: contractAddress } = useContracts();
 
   const { data, isLoading, error, refetch } = useReadContract({
     address: contractAddress,
