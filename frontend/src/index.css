@@ -81,11 +81,3 @@ body {
 h1, h2, h3 {
   font-family: 'Press Start 2P', cursive;
 }
-
-.pixel-border {
-  box-shadow:
-    0 4px 0 0 var(--accent-pink),
-    0 -4px 0 0 var(--accent-pink),
-    4px 0 0 0 var(--accent-pink),
-    -4px 0 0 0 var(--accent-pink);
-}

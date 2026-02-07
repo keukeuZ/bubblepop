@@ -516,14 +516,21 @@ describe("BubblePop", function () {
   describe("Emergency VRF Reset", function () {
     it("Should allow owner to reset stuck VRF state", async function () {
       await bubblePop.connect(player1).enter(SMALL_POOL);
-      await bubblePop.requestRandomWinner(SMALL_POOL);
+      const tx = await bubblePop.requestRandomWinner(SMALL_POOL);
+      const receipt = await tx.wait();
+      const event = receipt.logs.find(log => {
+        try {
+          return bubblePop.interface.parseLog(log)?.name === "RandomnessRequested";
+        } catch { return false; }
+      });
+      const requestId = bubblePop.interface.parseLog(event).args.requestId;
 
       // Pool should have VRF pending
       let pool = await bubblePop.getPool(SMALL_POOL);
       expect(pool.vrfRequestPending).to.be.true;
 
-      // Owner can reset
-      await expect(bubblePop.emergencyResetVRF(SMALL_POOL))
+      // Owner can reset with requestId to clean up mapping
+      await expect(bubblePop.emergencyResetVRF(SMALL_POOL, requestId))
         .to.emit(bubblePop, "EmergencyVRFReset");
 
       pool = await bubblePop.getPool(SMALL_POOL);
@@ -531,7 +538,7 @@ describe("BubblePop", function () {
     });
 
     it("Should revert if no VRF request pending", async function () {
-      await expect(bubblePop.emergencyResetVRF(SMALL_POOL))
+      await expect(bubblePop.emergencyResetVRF(SMALL_POOL, 0))
         .to.be.revertedWithCustomError(bubblePop, "NoVRFRequestPending");
     });
 
@@ -539,7 +546,33 @@ describe("BubblePop", function () {
       await bubblePop.connect(player1).enter(SMALL_POOL);
       await bubblePop.requestRandomWinner(SMALL_POOL);
 
-      await expect(bubblePop.connect(player1).emergencyResetVRF(SMALL_POOL))
+      await expect(bubblePop.connect(player1).emergencyResetVRF(SMALL_POOL, 0))
+        .to.be.revertedWithCustomError(bubblePop, "OnlyOwner");
+    });
+  });
+
+  describe("Pausable", function () {
+    it("Should allow owner to pause", async function () {
+      await bubblePop.pause();
+      await expect(bubblePop.connect(player1).enter(SMALL_POOL))
+        .to.be.revertedWithCustomError(bubblePop, "EnforcedPause");
+    });
+
+    it("Should allow owner to unpause", async function () {
+      await bubblePop.pause();
+      await bubblePop.unpause();
+      await expect(bubblePop.connect(player1).enter(SMALL_POOL))
+        .to.emit(bubblePop, "EntrySubmitted");
+    });
+
+    it("Should block donations when paused", async function () {
+      await bubblePop.pause();
+      await expect(bubblePop.connect(player1).donate(SMALL_POOL, ONE_USDC))
+        .to.be.revertedWithCustomError(bubblePop, "EnforcedPause");
+    });
+
+    it("Should revert if non-owner tries to pause", async function () {
+      await expect(bubblePop.connect(player1).pause())
         .to.be.revertedWithCustomError(bubblePop, "OnlyOwner");
     });
   });

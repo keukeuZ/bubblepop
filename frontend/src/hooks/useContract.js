@@ -26,7 +26,7 @@ export function formatUSDC(amount) {
  * Raw value is out of 1,000,000
  */
 export function formatWinChance(rawChance) {
-  if (!rawChance) return '0.001%';
+  if (!rawChance) return '0%';
   const percentage = (Number(rawChance) / 1000000) * 100;
   if (percentage < 0.01) {
     return percentage.toFixed(4) + '%';

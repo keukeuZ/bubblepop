@@ -220,7 +220,7 @@ function getGenerator() {
   return generatorInstance;
 }
 
-export function MusicPlayer() {
+export function MusicPlayer({ disabled = false }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(30);
   const [isMuted, setIsMuted] = useState(false);
@@ -237,8 +237,9 @@ export function MusicPlayer() {
   }, [volume, isMuted]);
 
   // Auto-start music on first user interaction (browsers require user gesture for audio)
+  // When disabled, don't register listeners. When disabled changes from true to false, register them.
   useEffect(() => {
-    if (!autoStartPending) return;
+    if (!autoStartPending || disabled) return;
 
     const startMusic = () => {
       const gen = generator.current;
@@ -278,7 +279,7 @@ export function MusicPlayer() {
       document.removeEventListener('keydown', startMusic);
       document.removeEventListener('touchstart', startMusic);
     };
-  }, [autoStartPending]);
+  }, [autoStartPending, disabled]);
 
   const handleTogglePlay = useCallback(() => {
     const gen = generator.current;

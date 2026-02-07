@@ -870,22 +870,9 @@
   transform: translateY(0);
 }
 
-/* Loading pulse animation */
-.loading-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
 /* Jackpot card entry animation */
 .jackpot-card {
   animation: fadeIn 0.3s ease-out;
-}
-
-/* Loading skeleton */
-.skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.1) 25%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
 }
 
 /* Improved mobile touch targets */
@@ -1292,5 +1279,140 @@
   .nes-btn {
     font-size: 0.7rem !important;
     padding: 0.5rem !important;
+  }
+}
+
+/* ========================================
+   Bot Disclaimer Overlay
+   ======================================== */
+.bot-disclaimer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 1;
+  transition: opacity 300ms ease-out;
+}
+
+.bot-disclaimer-overlay.fading-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bot-disclaimer-dialog {
+  max-width: 600px;
+  width: 100%;
+  background-color: #1a1a2e !important;
+  border-color: #e94560 !important;
+  position: relative;
+}
+
+.bot-disclaimer-header {
+  text-align: center;
+  margin-bottom: 1rem;
+  border-color: #e94560 !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.bot-disclaimer-header .title {
+  background-color: #1a1a2e !important;
+}
+
+.bot-disclaimer-subtitle {
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+  letter-spacing: 2px;
+}
+
+.bot-disclaimer-body {
+  margin-bottom: 1.5rem;
+}
+
+.bot-disclaimer-body p {
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #a0a0b0);
+  margin: 0 0 0.75rem;
+}
+
+.bot-disclaimer-checkbox {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem;
+  background-color: rgba(15, 52, 96, 0.3);
+  border: 2px solid #0f3460;
+  border-radius: 4px;
+}
+
+.bot-disclaimer-checkbox label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.bot-disclaimer-checkbox span {
+  font-size: 0.65rem;
+  line-height: 1.6;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.bot-disclaimer-fine-print {
+  margin-bottom: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 2px dashed #0f3460;
+}
+
+.bot-disclaimer-fine-print p {
+  font-size: 0.55rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #a0a0b0);
+  opacity: 0.7;
+  margin: 0;
+}
+
+.bot-disclaimer-btn {
+  display: block;
+  width: 100%;
+  font-size: 0.85rem !important;
+  padding: 0.75rem 1.5rem !important;
+  letter-spacing: 2px;
+}
+
+.bot-disclaimer-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Responsive bot disclaimer */
+@media (max-width: 480px) {
+  .bot-disclaimer-dialog {
+    max-width: 100%;
+  }
+
+  .bot-disclaimer-subtitle {
+    font-size: 0.7rem;
+  }
+
+  .bot-disclaimer-body p {
+    font-size: 0.6rem;
+  }
+
+  .bot-disclaimer-checkbox span {
+    font-size: 0.55rem;
+  }
+
+  .bot-disclaimer-fine-print p {
+    font-size: 0.5rem;
+  }
+
+  .bot-disclaimer-btn {
+    font-size: 0.75rem !important;
   }
 }

@@ -1,16 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePublicClient, useBlockNumber, useChainId } from 'wagmi';
-import { formatUnits } from 'viem';
 import { contracts, CHAIN_IDS } from '../config/wagmi';
-import { SMALL_POOL } from '../hooks/useContract';
+import { SMALL_POOL, formatUSDC } from '../hooks/useContract';
+import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
 import { AddressDisplay } from './AddressDisplay';
-
-// Format USDC amount (6 decimals)
-const formatUSDC = (amount) => {
-  if (!amount) return '0';
-  const formatted = formatUnits(amount, 6);
-  return parseFloat(formatted).toFixed(2);
-};
 
 export function WinnerHistory() {
   const [winners, setWinners] = useState([]);
@@ -18,10 +11,8 @@ export function WinnerHistory() {
   const [lastFetchedBlock, setLastFetchedBlock] = useState(null);
 
   const chainId = useChainId();
-  // Use Base Sepolia chain ID explicitly for event queries
-  const targetChainId = CHAIN_IDS.BASE_SEPOLIA;
-  const publicClient = usePublicClient({ chainId: targetChainId });
-  const { data: currentBlock } = useBlockNumber({ chainId: targetChainId, watch: true });
+  const publicClient = usePublicClient({ chainId });
+  const { data: currentBlock } = useBlockNumber({ chainId, watch: true });
 
   const hasContract = !!contracts.bubblePop;
 
@@ -50,15 +41,10 @@ export function WinnerHistory() {
 
   // Fetch historical winners
   const fetchWinners = useCallback(async (fromBlock = null) => {
-    if (!publicClient || !hasContract) {
-      console.log('[WinnerHistory] Skipping fetch - publicClient:', !!publicClient, 'hasContract:', hasContract);
-      return;
-    }
+    if (!publicClient || !hasContract) return;
 
     try {
       const latestBlock = await publicClient.getBlockNumber();
-      console.log('[WinnerHistory] Current block:', latestBlock.toString());
-      console.log('[WinnerHistory] Contract address:', contracts.bubblePop);
 
       // RPC limit is typically 50k blocks, search in chunks
       const CHUNK_SIZE = 49000n;
@@ -68,19 +54,7 @@ export function WinnerHistory() {
         ? BigInt(fromBlock)
         : (latestBlock > TOTAL_BLOCKS ? latestBlock - TOTAL_BLOCKS : 0n);
 
-      console.log('[WinnerHistory] Searching from block:', searchFromBlock.toString(), 'to', latestBlock.toString());
-
-      const eventAbi = {
-        type: 'event',
-        name: 'WinnerSelected',
-        inputs: [
-          { indexed: true, name: 'poolId', type: 'uint256' },
-          { indexed: true, name: 'winner', type: 'address' },
-          { indexed: false, name: 'amount', type: 'uint256' },
-          { indexed: false, name: 'houseFee', type: 'uint256' },
-          { indexed: false, name: 'requestId', type: 'uint256' },
-        ],
-      };
+      const eventAbi = BUBBLEPOP_ABI.find(item => item.name === 'WinnerSelected' && item.type === 'event');
 
       // Fetch in chunks to avoid RPC block range limits
       let allLogs = [];
@@ -95,14 +69,12 @@ export function WinnerHistory() {
             fromBlock: start,
             toBlock: end,
           });
-          console.log(`[WinnerHistory] Chunk ${chunkCount}: blocks ${start}-${end}, found ${chunkLogs.length} events`);
           allLogs = allLogs.concat(chunkLogs);
         } catch (err) {
           console.warn(`[WinnerHistory] Error fetching chunk ${start}-${end}:`, err);
         }
       }
 
-      console.log('[WinnerHistory] Total events found:', allLogs.length);
       const logs = allLogs;
 
       if (logs.length > 0) {

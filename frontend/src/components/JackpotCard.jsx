@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../hooks/useContract';
 import { useEntryFlow } from '../hooks/useEntry';
 import { useDonationFlow, useUserDonation } from '../hooks/useDonation';
+import { useTransactionToast } from '../hooks/useTransactionToast';
 import { useToast } from './Toast';
 import { GracePeriodCountdown } from './GracePeriodCountdown';
 import { PoolTimer } from './PoolTimer';
@@ -104,85 +105,35 @@ export function JackpotCard({ poolId, title, isCorrectNetwork }) {
   // Check if approval is needed
   const needsApproval = allowance !== undefined && allowance < entryPrice;
 
-  // Handle approval success
-  useEffect(() => {
-    if (approval.isConfirmed) {
-      toast.success('USDC approved! Now you can enter.');
-      approval.reset();
-    }
-  }, [approval.isConfirmed]);
+  // Transaction feedback toasts
+  useTransactionToast(approval, toast, {
+    successMessage: 'USDC approved! Now you can enter.',
+    errorPrefix: 'Approval failed',
+  });
 
-  // Handle approval error
-  useEffect(() => {
-    if (approval.error) {
-      toast.error(`Approval failed: ${approval.error.shortMessage || 'Unknown error'}`);
-      approval.reset();
-    }
-  }, [approval.error]);
+  const luckMessages = [
+    "Entry confirmed! Fingers crossed!",
+    "You're in! May the odds be in your favor!",
+    "Bubble submitted! Good luck!",
+    "Entry locked in! Let's see what happens!",
+    "You're playing! Dreams can come true!",
+  ];
+  useTransactionToast(entry, toast, {
+    successMessage: luckMessages[Math.floor(Math.random() * luckMessages.length)],
+    errorPrefix: 'Entry failed',
+    onSuccess: () => { refetchPool(); setEntryPhrase(getRandomPhrase()); },
+  });
 
-  // Handle entry success - show result feedback
-  useEffect(() => {
-    if (entry.isConfirmed) {
-      // Show a fun message - actual win detection would need to check events
-      const luckMessages = [
-        "Entry confirmed! Fingers crossed!",
-        "You're in! May the odds be in your favor!",
-        "Bubble submitted! Good luck!",
-        "Entry locked in! Let's see what happens!",
-        "You're playing! Dreams can come true!",
-      ];
-      const msg = luckMessages[Math.floor(Math.random() * luckMessages.length)];
-      toast.success(msg);
-      entry.reset();
-      refetchPool();
-      // Get new phrase for next entry
-      setEntryPhrase(getRandomPhrase());
-    }
-  }, [entry.isConfirmed]);
+  useTransactionToast(donationApproval, toast, {
+    successMessage: 'USDC approved! Now you can donate.',
+    errorPrefix: 'Approval failed',
+  });
 
-  // Handle entry error
-  useEffect(() => {
-    if (entry.error) {
-      toast.error(`Entry failed: ${entry.error.shortMessage || 'Unknown error'}`);
-      entry.reset();
-    }
-  }, [entry.error]);
-
-  // Handle donation approval success
-  useEffect(() => {
-    if (donationApproval.isConfirmed) {
-      toast.success('USDC approved! Now you can donate.');
-      donationApproval.reset();
-    }
-  }, [donationApproval.isConfirmed]);
-
-  // Handle donation approval error
-  useEffect(() => {
-    if (donationApproval.error) {
-      toast.error(`Approval failed: ${donationApproval.error.shortMessage || 'Unknown error'}`);
-      donationApproval.reset();
-    }
-  }, [donationApproval.error]);
-
-  // Handle donation success
-  useEffect(() => {
-    if (donation.isConfirmed) {
-      toast.success('Donation confirmed! Thank you for your contribution!');
-      donation.reset();
-      setDonationAmount('');
-      setShowDonation(false);
-      refetchPool();
-      refetchDonation();
-    }
-  }, [donation.isConfirmed]);
-
-  // Handle donation error
-  useEffect(() => {
-    if (donation.error) {
-      toast.error(`Donation failed: ${donation.error.shortMessage || 'Unknown error'}`);
-      donation.reset();
-    }
-  }, [donation.error]);
+  useTransactionToast(donation, toast, {
+    successMessage: 'Donation confirmed! Thank you for your contribution!',
+    errorPrefix: 'Donation failed',
+    onSuccess: () => { setDonationAmount(''); setShowDonation(false); refetchPool(); refetchDonation(); },
+  });
 
   // Parse and validate donation amount
   const parsedDonationAmount = parseAmount(donationAmount);

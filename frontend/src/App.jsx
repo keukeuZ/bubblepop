@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useChainId } from 'wagmi';
 import { CHAIN_IDS } from './config/wagmi';
@@ -10,12 +11,18 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { LiveEntries } from './components/LiveEntries';
 import { ASCIIBackground } from './components/ASCIIBackground';
 import { MusicPlayer } from './components/MusicPlayer';
+import { BotDisclaimer, checkExistingConsent } from './components/BotDisclaimer';
 import { SMALL_POOL, BIG_POOL } from './hooks/useContract';
 import './App.css';
 
 function App() {
   const { isConnected, address } = useAccount();
   const chainId = useChainId();
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(() => checkExistingConsent());
+
+  const handleDisclaimerAccept = useCallback(() => {
+    setDisclaimerAccepted(true);
+  }, []);
 
   const isCorrectNetwork = chainId === CHAIN_IDS.BASE_SEPOLIA || chainId === CHAIN_IDS.BASE_MAINNET;
 
@@ -23,7 +30,8 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <ASCIIBackground />
-        <MusicPlayer />
+        <MusicPlayer disabled={!disclaimerAccepted} />
+        {!disclaimerAccepted && <BotDisclaimer onAccept={handleDisclaimerAccept} />}
         <div className="app">
         <header className="header">
           <div className="logo">
@@ -110,7 +118,7 @@ function App() {
             ↑ Back to Top
           </button>
           <p className="nes-text is-disabled">
-            Built on Base | Provably Fair
+            Built on Base | Provably Fair | For AI Bots Only | Not a Gambling Service
           </p>
         </footer>
         </div>

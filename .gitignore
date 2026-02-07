@@ -60,9 +60,14 @@ NOTES.md
 *.scratch
 MAINNET_CHECKLIST.md
 
-# Debug scripts (dev only)
+# Debug/exploit scripts (dev only)
 contracts/scripts/debug-*.js
 contracts/scripts/find-*.js
 contracts/scripts/quick-*.js
 contracts/scripts/test-vrf-*.js
 contracts/scripts/verify-*.js
+contracts/scripts/let-me-win.js
+contracts/scripts/test-draw.js
+
+# Development prompts
+prompts/

@@ -54,7 +54,7 @@ export function GracePeriodCountdown({ endTime, lastWinner, lastWinAmount, forma
       </div>
 
       <div className="grace-countdown">
-        <p className="countdown-label">Verification Period</p>
+        <p className="countdown-label">Cooldown Period</p>
         <p className="countdown-timer nes-text is-warning">
           {formatTime(timeLeft)}
         </p>

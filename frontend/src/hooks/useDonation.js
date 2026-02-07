@@ -1,58 +1,9 @@
 import { useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseUnits } from 'viem';
-import { BUBBLEPOP_ABI, ERC20_ABI } from '../contracts/BubblePopABI';
+import { BUBBLEPOP_ABI } from '../contracts/BubblePopABI';
 import { contracts } from '../config/wagmi';
 import { USDC_DECIMALS } from './useContract';
-
-/**
- * Hook to handle USDC approval for donations
- */
-export function useApproveDonation() {
-  const {
-    data: hash,
-    writeContract,
-    isPending,
-    error,
-    reset,
-  } = useWriteContract();
-
-  const {
-    isLoading: isConfirming,
-    isSuccess: isConfirmed,
-  } = useWaitForTransactionReceipt({ hash });
-
-  const approve = async (amount) => {
-    const usdcAddress = contracts.usdc;
-    const bubblePopAddress = contracts.bubblePop;
-
-    if (!usdcAddress || !bubblePopAddress) {
-      throw new Error('Contract addresses not configured');
-    }
-
-    writeContract({
-      address: usdcAddress,
-      abi: ERC20_ABI,
-      functionName: 'approve',
-      args: [bubblePopAddress, amount],
-    });
-  };
-
-  const approveMax = async () => {
-    const maxAmount = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-    await approve(maxAmount);
-  };
-
-  return {
-    approve,
-    approveMax,
-    hash,
-    isPending,
-    isConfirming,
-    isConfirmed,
-    error,
-    reset,
-  };
-}
+import { useApproveUSDC } from './useEntry';
 
 /**
  * Hook to handle donation transaction
@@ -126,7 +77,7 @@ export function useUserDonation(poolId, userAddress) {
  * Combined hook for the full donation flow
  */
 export function useDonationFlow() {
-  const approval = useApproveDonation();
+  const approval = useApproveUSDC();
   const donation = useDonateToPool();
 
   const isLoading = approval.isPending || approval.isConfirming ||

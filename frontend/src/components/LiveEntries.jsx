@@ -81,67 +81,32 @@ export function LiveEntries() {
     if (!publicClient || !hasContract) return [];
 
     try {
-      // Fetch entry events
+      const findEvent = (name) => BUBBLEPOP_ABI.find(item => item.name === name && item.type === 'event');
+
       const entryLogs = await publicClient.getLogs({
         address: contracts.bubblePop,
-        event: {
-          type: 'event',
-          name: 'EntrySubmitted',
-          inputs: [
-            { indexed: true, name: 'poolId', type: 'uint256' },
-            { indexed: true, name: 'player', type: 'address' },
-            { indexed: false, name: 'entryNumber', type: 'uint256' },
-            { indexed: false, name: 'blockNumber', type: 'uint256' },
-          ],
-        },
+        event: findEvent('EntrySubmitted'),
         fromBlock,
         toBlock,
       });
 
-      // Fetch donation events
       const donationLogs = await publicClient.getLogs({
         address: contracts.bubblePop,
-        event: {
-          type: 'event',
-          name: 'DonationReceived',
-          inputs: [
-            { indexed: true, name: 'poolId', type: 'uint256' },
-            { indexed: true, name: 'donor', type: 'address' },
-            { indexed: false, name: 'amount', type: 'uint256' },
-            { indexed: false, name: 'newJackpot', type: 'uint256' },
-          ],
-        },
+        event: findEvent('DonationReceived'),
         fromBlock,
         toBlock,
       });
 
-      // Fetch NoWinnerThisRoll events
       const noWinnerLogs = await publicClient.getLogs({
         address: contracts.bubblePop,
-        event: {
-          type: 'event',
-          name: 'NoWinnerThisRoll',
-          inputs: [
-            { indexed: true, name: 'poolId', type: 'uint256' },
-            { indexed: true, name: 'requestId', type: 'uint256' },
-            { indexed: false, name: 'currentOdds', type: 'uint256' },
-          ],
-        },
+        event: findEvent('NoWinnerThisRoll'),
         fromBlock,
         toBlock,
       });
 
-      // Fetch NewRoundStarted events
       const newRoundLogs = await publicClient.getLogs({
         address: contracts.bubblePop,
-        event: {
-          type: 'event',
-          name: 'NewRoundStarted',
-          inputs: [
-            { indexed: true, name: 'poolId', type: 'uint256' },
-            { indexed: false, name: 'roundId', type: 'uint256' },
-          ],
-        },
+        event: findEvent('NewRoundStarted'),
         fromBlock,
         toBlock,
       });
@@ -217,11 +182,7 @@ export function LiveEntries() {
       const currentBlock = blockNumber;
       const fromBlock = currentBlock > 500n ? currentBlock - 500n : 0n;
 
-      console.log(`Fetching initial events from block ${fromBlock} to ${currentBlock}`);
-
       const events = await fetchEvents(fromBlock, currentBlock);
-
-      console.log(`Found ${events.length} initial events`);
 
       if (events.length > 0) {
         // Take last 10, most recent first
@@ -244,13 +205,9 @@ export function LiveEntries() {
     const fetchNewEvents = async () => {
       const fromBlock = lastFetchedBlock + 1n;
 
-      console.log(`Checking for new events from block ${fromBlock} to ${blockNumber}`);
-
       const newEvents = await fetchEvents(fromBlock, blockNumber);
 
       if (newEvents.length > 0) {
-        console.log(`Found ${newEvents.length} new events!`);
-
         setEntries((prev) => {
           const existingIds = new Set(prev.map((e) => e.id));
           const uniqueNew = newEvents.filter((e) => !existingIds.has(e.id));

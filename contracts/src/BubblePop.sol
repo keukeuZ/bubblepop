@@ -3,18 +3,18 @@ pragma solidity 0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@chainlink/contracts/src/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
 import "@chainlink/contracts/src/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
-import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 
 /**
  * @title BubblePop Lottery
  * @notice A lottery game with two jackpot pools on Base blockchain
  * @dev Uses Chainlink VRF v2.5 for provably fair randomness
  */
-contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatibleInterface {
+contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, Pausable, AutomationCompatibleInterface {
     using SafeERC20 for IERC20;
 
     // ============ Structs ============
@@ -33,7 +33,6 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
     struct Entry {
         address player;
-        uint256 blockNumber;
     }
 
     struct VRFRequest {
@@ -76,7 +75,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
     uint256 public s_subscriptionId;
     bytes32 public s_keyHash;
-    uint32 public s_callbackGasLimit = 200000;
+    uint32 public s_callbackGasLimit = 500000;
     uint16 public s_requestConfirmations = 3;
     uint32 public constant NUM_WORDS = 1;
 
@@ -248,7 +247,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      * @notice Enter a lottery pool
      * @param poolId 0 for small pool (1 USDC), 1 for big pool (10 USDC)
      */
-    function enter(uint256 poolId) external nonReentrant {
+    function enter(uint256 poolId) external nonReentrant whenNotPaused {
         if (poolId > 1) revert InvalidPoolId();
 
         Pool storage pool = pools[poolId];
@@ -259,6 +258,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
                 pool.inGracePeriod = false;
                 pool.roundStartTime = block.timestamp;
                 emit GracePeriodEnded(poolId);
+                emit NewRoundStarted(poolId, currentRoundId[poolId]);
             } else {
                 revert PoolInGracePeriod();
             }
@@ -271,8 +271,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         // Add entry
         poolEntries[poolId].push(Entry({
-            player: msg.sender,
-            blockNumber: block.number
+            player: msg.sender
         }));
 
         pool.jackpot += entryPrice;
@@ -387,6 +386,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         pool.roundStartTime = block.timestamp;
 
         emit GracePeriodEnded(poolId);
+        emit NewRoundStarted(poolId, currentRoundId[poolId]);
     }
 
     /**
@@ -394,7 +394,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      * @param poolId The pool to donate to (0 = small, 1 = big)
      * @param amount Amount of USDC to donate (6 decimals)
      */
-    function donate(uint256 poolId, uint256 amount) external nonReentrant {
+    function donate(uint256 poolId, uint256 amount) external nonReentrant whenNotPaused {
         if (poolId > 1) revert InvalidPoolId();
         if (amount == 0) revert InvalidAmount();
 
@@ -557,7 +557,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         uint256 elapsed = block.timestamp - pool.roundStartTime;
 
         if (elapsed >= ESCALATION_PERIOD) {
-            return MAX_WIN_CHANCE; // 0.01% cap after 14 days
+            return MAX_WIN_CHANCE; // 0.07% cap after 14 days
         }
 
         // Linear increase from BASE_WIN_CHANCE to MAX_WIN_CHANCE over ESCALATION_PERIOD
@@ -830,7 +830,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      * @notice Perform the upkeep (called by Chainlink Automation)
      * @param performData Encoded pool eligibility from checkUpkeep
      */
-    function performUpkeep(bytes calldata performData) external override {
+    function performUpkeep(bytes calldata performData) external override onlyAuthorized {
         if (!automationEnabled) return;
 
         (bool pool0Eligible, bool pool1Eligible, bool pool0Forced, bool pool1Forced) =
@@ -838,6 +838,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
 
         // Forced draws take priority (90-day rule)
         if (pool0Forced && _isPoolEligibleForForcedDraw(0)) {
+            lastAutomationDrawTime[0] = block.timestamp;
             _triggerAutomationDraw(0, true);
         } else if (pool0Eligible && _isPoolEligibleForAutoDraw(0)) {
             lastAutomationDrawTime[0] = block.timestamp;
@@ -845,6 +846,7 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
         }
 
         if (pool1Forced && _isPoolEligibleForForcedDraw(1)) {
+            lastAutomationDrawTime[1] = block.timestamp;
             _triggerAutomationDraw(1, true);
         } else if (pool1Eligible && _isPoolEligibleForAutoDraw(1)) {
             lastAutomationDrawTime[1] = block.timestamp;
@@ -994,32 +996,35 @@ contract BubblePop is VRFConsumerBaseV2Plus, ReentrancyGuard, AutomationCompatib
      * @dev Only use if VRF callback failed and pool is stuck
      * @param poolId The pool to reset
      */
-    function emergencyResetVRF(uint256 poolId) external {
+    function emergencyResetVRF(uint256 poolId, uint256 requestId) external {
         if (msg.sender != owner()) revert OnlyOwner();
         if (poolId > 1) revert InvalidPoolId();
         if (!pools[poolId].vrfRequestPending) revert NoVRFRequestPending();
 
         pools[poolId].vrfRequestPending = false;
+
+        // Clean up the stale VRF request mapping entry
+        if (vrfRequests[requestId].exists) {
+            delete vrfRequests[requestId];
+        }
+
         emit EmergencyVRFReset(poolId);
     }
 
     /**
-     * @notice Test draw function for testnet only - bypasses VRF
-     * @dev Uses provided seed for randomness. REMOVE FOR PRODUCTION!
-     * @param poolId The pool to draw
-     * @param seed Random seed provided by caller
+     * @notice Pause the contract - stops entries and donations
      */
-    function testDraw(uint256 poolId, uint256 seed) external onlyAuthorized {
-        if (poolId > 1) revert InvalidPoolId();
+    function pause() external {
+        if (msg.sender != owner()) revert OnlyOwner();
+        _pause();
+    }
 
-        Pool storage pool = pools[poolId];
-
-        if (pool.inGracePeriod) revert PoolInGracePeriod();
-        if (pool.vrfRequestPending) revert VRFRequestPending();
-        if (poolEntries[poolId].length == 0) revert NoEntries();
-
-        // Directly process winner using the provided seed
-        _processWinner(poolId, seed, 0);
+    /**
+     * @notice Unpause the contract
+     */
+    function unpause() external {
+        if (msg.sender != owner()) revert OnlyOwner();
+        _unpause();
     }
 
 }
